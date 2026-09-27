@@ -3,7 +3,7 @@
 // Al primo caricamento online mette in cache i file; poi l'app funziona
 // anche senza rete. Aggiorna il numero di versione per invalidare la cache.
 
-const CACHE_NAME = 'crudocamera-v19';
+const CACHE_NAME = 'crudocamera-v20';
 
 // File che compongono il "guscio" dell'app da rendere disponibili offline.
 const APP_SHELL = [

@@ -373,10 +373,11 @@ function draw() {
   {
     const vw = (video && video.videoWidth) || 720;
     const vh = (video && video.videoHeight) || 1280;
-    const camA = vw / vh;
+    // aspetto verticale effettivo (lato corto / lato lungo)
+    const camPortraitA = Math.min(vw, vh) / Math.max(vw, vh);
     const vpA = 2/3;   // canvas 2:3 verticale
     let sx = 1, sy = 1;
-    if (camA > vpA) sx = camA / vpA; else sy = vpA / camA;
+    if (camPortraitA > vpA) sx = camPortraitA / vpA; else sy = vpA / camPortraitA;
     gl.uniform2f(gl.getUniformLocation(p, 'uQuadScale'), sx, sy);
   }
   gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter][1]);

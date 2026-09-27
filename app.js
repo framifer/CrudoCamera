@@ -19,14 +19,13 @@ const VERT = `
   attribute vec2 aPos;
   attribute vec2 aTex;
   uniform float uZoom;
-  uniform vec2 uTexCrop;
+  uniform vec2 uQuadScale;
   varying vec2 vTex;
   void main() {
     vec2 tc = aTex;
     tc = (tc - 0.5) / uZoom + 0.5;   // crop centrale = focale
-    tc = (tc - 0.5) * uTexCrop + 0.5; // ritaglio proporzioni (no squeeze)
     vTex = tc;
-    gl_Position = vec4(aPos, 0.0, 1.0);
+    gl_Position = vec4(aPos * uQuadScale, 0.0, 1.0);
   }
 `;
 
@@ -374,12 +373,11 @@ function draw() {
   {
     const vw = (video && video.videoWidth) || 720;
     const vh = (video && video.videoHeight) || 1280;
-    const camAspect = vw / vh;
-    const targetAspect = 2/3;
-    let cropX = 1, cropY = 1;
-    if (camAspect > targetAspect) cropX = targetAspect / camAspect;
-    else cropY = camAspect / targetAspect;
-    gl.uniform2f(gl.getUniformLocation(p, 'uTexCrop'), cropX, cropY);
+    const camA = vw / vh;
+    const vpA = 2/3;   // canvas 2:3 verticale
+    let sx = 1, sy = 1;
+    if (camA > vpA) sx = camA / vpA; else sy = vpA / camA;
+    gl.uniform2f(gl.getUniformLocation(p, 'uQuadScale'), sx, sy);
   }
   gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter][1]);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusOn'), focusOn ? 1.0 : 0.0);
@@ -751,7 +749,7 @@ function drawEditor(){
   editorGl.uniform1f(editorGl.getUniformLocation(p,'uTime'), performance.now()/1000);
   editorGl.uniform1f(editorGl.getUniformLocation(p,'uIntensity'), editorIntensity);
   editorGl.uniform1f(editorGl.getUniformLocation(p,'uZoom'), 1.0);
-  editorGl.uniform2f(editorGl.getUniformLocation(p,'uTexCrop'), 1.0, 1.0);
+  editorGl.uniform2f(editorGl.getUniformLocation(p,'uQuadScale'), 1.0, 1.0);
   editorGl.uniform1f(editorGl.getUniformLocation(p,'uShutter'), 0.0);
   editorGl.uniform1f(editorGl.getUniformLocation(p,'uFocusOn'), 0.0);
   editorGl.uniform2f(editorGl.getUniformLocation(p,'uFocusPoint'), 0.5, 0.5);

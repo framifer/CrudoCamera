@@ -82,10 +82,10 @@ const EFFECTS = [
       col*=tint; col = mix(col, mix(vec3(lum), vec3(0.72,0.70,0.66),0.5), 0.22);
       float rd = clamp((col.r-max(col.g,col.b))*2.0,0.0,1.0);
       col.r += rd*0.03; col = mix(col, vec3(lum), rd*0.12);  // rossi caldi ma desaturati
-      col=(col-0.5)*0.92+0.5; col+=0.035;     // luce piatta, ombre aperte
+      col=(col-0.5)*0.92+0.5; col += 0.02*smoothstep(0.15,0.6,lum);  // luce piatta, velatura solo dove c'e' luce
       float bd = clamp((col.b-max(col.r,col.g))*2.0,0.0,1.0);
       col = mix(col, vec3(0.66,0.76,0.82), bd*0.30);  // azzurri polverosi
-      col += vec3(0.020,0.014,-0.010);        // dominante calda/gialla
+      col += vec3(0.020,0.014,-0.010)*smoothstep(0.12,0.55,lum);  // dominante calda solo con luce (no patina notturna)
       col += (rand(vTex*1400.0+uTime)-0.5)*0.03;  // grana finissima
   `},
   { name: 'Portra', body: `
@@ -533,7 +533,21 @@ async function openCamera(){
       audio:false
     });
     video.srcObject=stream; await video.play();
+    // Adatta il canvas GL alle proporzioni REALI del video (niente stiramento).
+    // Il video del telefono e' landscape; in verticale usiamo un ritaglio 3:2.
+    fitCanvasToVideo();
   }catch(e){ toast('Fotocamera non disponibile'); }
+}
+
+// Imposta la risoluzione interna del canvas GL con le proporzioni corrette
+// (verticale 2:3) in base al video, per evitare immagini deformate.
+function fitCanvasToVideo(){
+  const canvas = document.getElementById('gl');
+  const vw = video.videoWidth || 720, vh = video.videoHeight || 1280;
+  // lato corto del video come base; output verticale 2:3 (w:h)
+  const base = Math.min(vw, vh);
+  canvas.width = base;
+  canvas.height = Math.round(base * 3 / 2);
 }
 
 function flipCamera(){
@@ -543,9 +557,9 @@ function flipCamera(){
 
 async function start(){
   const canvas=document.getElementById('gl');
-  // dimensione interna del canvas = dimensione visibile
-  const r=canvas.getBoundingClientRect();
-  canvas.width=r.width; canvas.height=r.height;
+  // Dimensione iniziale provvisoria; verra' adattata alle proporzioni del
+  // video da fitCanvasToVideo() appena la fotocamera parte (evita deformazione).
+  canvas.width = 720; canvas.height = 1080;
   initGL(canvas);
 
   video=document.getElementById('video');

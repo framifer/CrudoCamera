@@ -2,7 +2,7 @@
  * - Accede alla fotocamera (getUserMedia)
  * - Disegna i frame con WebGL applicando l'effetto pellicola selezionato
  * - Simula la focale con un crop centrale (zoom)
- * - Scatta foto (download PNG) con un suono di click sintetico
+ * - Scatta foto con sincronizzazione hardware atomica del flash
  *
  * NB: la registrazione video usa MediaRecorder sul canvas quando disponibile.
  */
@@ -82,12 +82,12 @@ const EFFECTS = [
       vec3 tint = mix(vec3(0.90,0.99,1.01), vec3(1.05,1.01,0.93), smoothstep(0.2,0.8,lum));
       col*=tint; col = mix(col, mix(vec3(lum), vec3(0.72,0.70,0.66),0.5), 0.22);
       float rd = clamp((col.r-max(col.g,col.b))*2.0,0.0,1.0);
-      col.r += rd*0.03; col = mix(col, vec3(lum), rd*0.12);  // rossi caldi ma desaturati
-      col=(col-0.5)*0.92+0.5; col += 0.02*smoothstep(0.15,0.6,lum);  // luce piatta, velatura solo dove c'e' luce
+      col.r += rd*0.03; col = mix(col, vec3(lum), rd*0.12);
+      col=(col-0.5)*0.92+0.5; col += 0.02*smoothstep(0.15,0.6,lum);
       float bd = clamp((col.b-max(col.r,col.g))*2.0,0.0,1.0);
-      col = mix(col, vec3(0.66,0.76,0.82), bd*0.30);  // azzurri polverosi
-      col += vec3(0.020,0.014,-0.010)*smoothstep(0.12,0.55,lum);  // dominante calda solo con luce (no patina notturna)
-      col += (rand(vTex*1400.0+uTime)-0.5)*0.03;  // grana finissima
+      col = mix(col, vec3(0.66,0.76,0.82), bd*0.30);
+      col += vec3(0.020,0.014,-0.010)*smoothstep(0.12,0.55,lum);
+      col += (rand(vTex*1400.0+uTime)-0.5)*0.03;
   `},
   { name: 'Portra', body: `
       vec3 col = texture2D(uTex,vTex).rgb; float lum=luma(col);
@@ -131,7 +131,7 @@ const EFFECTS = [
   `},
   { name: 'Lomography', body: `
       vec2 lcen = vTex - 0.5; float lr2 = dot(lcen, lcen);
-      vec2 luv = clamp(0.5 + lcen*(1.0 + 0.12*lr2), 0.0, 1.0);  // barrel distortion lieve
+      vec2 luv = clamp(0.5 + lcen*(1.0 + 0.12*lr2), 0.0, 1.0);
       vec2 lpx = vec2(1.0/720.0, 1.0/1280.0);
       float ledge = smoothstep(0.15, 0.5, lr2);
       vec3 lsharp = texture2D(uTex, luv).rgb;
@@ -161,26 +161,26 @@ const EFFECTS = [
   `},
   { name: 'Fuji', body: `
       vec3 col = texture2D(uTex,vTex).rgb; float lum=luma(col);
-      col=(col-0.5)*0.82+0.5; col+=0.05;                 // contrasto basso, ombre aperte
-      float hi=smoothstep(0.55,1.0,lum); col=mix(col, vec3(0.97,0.98,1.0), hi*0.35);  // alte luci soffiate
+      col=(col-0.5)*0.82+0.5; col+=0.05;
+      float hi=smoothstep(0.55,1.0,lum); col=mix(col, vec3(0.97,0.98,1.0), hi*0.35);
       col.r*=0.97; col.g*=1.01; col.b*=1.06;
-      col += vec3(-0.005,0.01,0.03)*(1.0-lum);           // ombre fredde/ciano
+      col += vec3(-0.005,0.01,0.03)*(1.0-lum);
       float warm = clamp((col.r-max(col.g,col.b))*2.2,0.0,1.0);
       vec3 desat = mix(col, vec3(lum), 0.35);
-      col = mix(desat, col, warm); col.r += warm*0.05;   // accenti caldi vivi
-      col += (rand(vTex*1500.0+uTime)-0.5)*0.025;        // grana finissima
+      col = mix(desat, col, warm); col.r += warm*0.05;
+      col += (rand(vTex*1500.0+uTime)-0.5)*0.025;
   `},
   { name: 'Ricoh', body: `
       vec2 px = vec2(1.0/720.0,1.0/1280.0);
       vec3 col = texture2D(uTex,vTex).rgb;
       vec3 rb = (texture2D(uTex,vTex+vec2(px.x,0.0)*1.5).rgb + texture2D(uTex,vTex-vec2(px.x,0.0)*1.5).rgb
                + texture2D(uTex,vTex+vec2(0.0,px.y)*1.5).rgb + texture2D(uTex,vTex-vec2(0.0,px.y)*1.5).rgb)*0.25;
-      col += (col - rb) * 0.28;   // nitidezza incisa "GR"
+      col += (col - rb) * 0.28;
       float lum=luma(col);
-      col=(col-0.5)*1.18+0.5;     // contrasto deciso, neri presenti
+      col=(col-0.5)*1.18+0.5;
       float gd = clamp((col.g-max(col.r,col.b))*2.0,0.0,1.0);
-      col = mix(col, col*vec3(0.96,1.04,1.0), gd*0.6); col.b += gd*0.01;  // verdi ricchi/freddi
-      float w = clamp((col.r-col.b)*1.8,0.0,1.0); col.r += w*0.02;        // pelle calda sobria
+      col = mix(col, col*vec3(0.96,1.04,1.0), gd*0.6); col.b += gd*0.01;
+      float w = clamp((col.r-col.b)*1.8,0.0,1.0); col.r += w*0.02;
       col = mix(vec3(lum), col, 1.08);
       col += (rand(vTex*1400.0+uTime)-0.5)*0.02;
   `},
@@ -334,7 +334,6 @@ function fragFor(effect) {
 }
 
 function initGL(canvas) {
-  // preserveDrawingBuffer garantisce che toBlob non legga un buffer vuoto
   gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
   programs = EFFECTS.map(e => buildProgram(fragFor(e)));
   const buf = gl.createBuffer();
@@ -366,7 +365,7 @@ function renderFrame() {
   gl.vertexAttribPointer(aTex, 2, gl.FLOAT, false, 16, 8);
   gl.uniform1f(gl.getUniformLocation(p, 'uTime'), (performance.now()-startTime)/1000);
   gl.uniform1f(gl.getUniformLocation(p, 'uIntensity'), intensity);
-  gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal][1]);
+  gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal]);
   {
     const vw = (video && video.videoWidth) || 720;
     const vh = (video && video.videoHeight) || 1280;
@@ -376,7 +375,7 @@ function renderFrame() {
     if (camPortraitA > vpA) sx = camPortraitA / vpA; else sy = vpA / camPortraitA;
     gl.uniform2f(gl.getUniformLocation(p, 'uQuadScale'), sx, sy);
   }
-  gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter][1]);
+  gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter]);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusOn'), focusOn ? 1.0 : 0.0);
   gl.uniform2f(gl.getUniformLocation(p, 'uFocusPoint'), focusX, focusY);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusRadius'), focusRadius);
@@ -450,9 +449,14 @@ function drawGrid(){
   }
 }
 
-// Scatto foto con sincronizzazione hardware completa (Flash sincronizzato)
+// Scatto foto con sincronizzazione atomica e ciclo di campionamento forzato
 async function capturePhoto(){
+  const btnShot = document.getElementById('btnShot');
+  if (btnShot) btnShot.style.pointerEvents = 'none';
+
   let torchActive = false;
+
+  // 1. Attivazione immediata del flash hardware se selezionato
   if (flashOn && videoTrack) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
@@ -462,30 +466,33 @@ async function capturePhoto(){
     }
   }
 
-  // Se il flash è attivo, attendiamo 650ms a pieno regime di rendering WebGL
-  // per dare al sensore ottico il tempo di inondare i fotogrammi di luce (Auto-Exposure)
-  if (torchActive) {
-    await new Promise(resolve => {
-      const start = performance.now();
-      function exposeLoop() {
-        renderFrame();
-        if (performance.now() - start < 650) {
-          requestAnimationFrame(exposeLoop);
-        } else {
-          resolve();
-        }
-      }
-      requestAnimationFrame(exposeLoop);
-    });
-  }
+  // 2. Sospensione temporanea del loop asincrono di sfondo
+  isRendering = false;
 
-  // Suono di scatto e vibrazione nel momento esatto di piena esposizione
+  // 3. Ciclo di campionamento forzato: ricarica texture WebGL frame per frame
+  // consentendo al sensore della fotocamera di assorbire l'Auto-Esposizione alla luce
+  const exposureTime = torchActive ? 600 : 50;
+  const startTimeExp = performance.now();
+  await new Promise(resolve => {
+    function expStep() {
+      renderFrame();
+      if (performance.now() - startTimeExp < exposureTime) {
+        requestAnimationFrame(expStep);
+      } else {
+        resolve();
+      }
+    }
+    requestAnimationFrame(expStep);
+  });
+
+  // 4. Esecuzione del rendering finale sul frame completamente illuminato
+  renderFrame();
+
+  // 5. Suono di scatto e vibrazione nel picco assoluto di luce
   playClick();
   if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
-  // Rendering del fotogramma esposto alla piena luce
-  renderFrame();
-
+  // 6. Cattura atomica istantanea del buffer WebGL PRIMA di spegnere il flash
   const canvas = document.getElementById('gl');
   let angle = 0;
   try {
@@ -493,7 +500,6 @@ async function capturePhoto(){
     angle = (typeof so === 'number') ? so : 0;
   } catch(e) {}
 
-  // Creazione immediata di un canvas snapshot prima di disattivare il flash
   const swap = (angle === 90 || angle === 270);
   const snapCanvas = document.createElement('canvas');
   snapCanvas.width  = swap ? canvas.height : canvas.width;
@@ -508,14 +514,19 @@ async function capturePhoto(){
     ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
   }
 
-  // Spegnimento del flash: l'immagine ad alta esposizione è già salvata in memoria nello snapCanvas
+  // 7. Spegnimento della torcia solo DOPO che l'immagine è salvata nello snapshot
   if (torchActive) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
     } catch (err) {}
   }
 
-  // Generazione del file PNG dallo snapshot
+  // 8. Ripristino del rendering in tempo reale del mirino
+  isRendering = true;
+  requestAnimationFrame(draw);
+  if (btnShot) btnShot.style.pointerEvents = 'auto';
+
+  // 9. Esportazione del file PNG dallo snapshot
   snapCanvas.toBlob((blob) => {
     if (!blob) return;
     const a = document.createElement('a');
@@ -594,7 +605,7 @@ async function openCamera(){
     videoTrack = stream.getVideoTracks()[0];
     video.srcObject=stream; 
 
-    // Assicura che l'elemento video rimanga attivo senza congelare la decodifica dei fotogrammi su Android
+    // Mantiene l'elemento video attivo per evitare throttle di decodifica su Android
     video.style.display = 'block';
     video.style.position = 'fixed';
     video.style.opacity = '0';

@@ -2,7 +2,7 @@
  * - Accede alla fotocamera (getUserMedia)
  * - Disegna i frame con WebGL applicando l'effetto pellicola selezionato
  * - Simula la focale con un crop centrale (zoom)
- * - Scatta foto con sincronizzazione hardware atomica del flash
+ * - Scatta foto con sincronizzazione hardware rapida del flash
  *
  * NB: la registrazione video usa MediaRecorder sul canvas quando disponibile.
  */
@@ -365,7 +365,7 @@ function renderFrame() {
   gl.vertexAttribPointer(aTex, 2, gl.FLOAT, false, 16, 8);
   gl.uniform1f(gl.getUniformLocation(p, 'uTime'), (performance.now()-startTime)/1000);
   gl.uniform1f(gl.getUniformLocation(p, 'uIntensity'), intensity);
-  gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal]);
+  gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal][1]);
   {
     const vw = (video && video.videoWidth) || 720;
     const vh = (video && video.videoHeight) || 1280;
@@ -375,7 +375,7 @@ function renderFrame() {
     if (camPortraitA > vpA) sx = camPortraitA / vpA; else sy = vpA / camPortraitA;
     gl.uniform2f(gl.getUniformLocation(p, 'uQuadScale'), sx, sy);
   }
-  gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter]);
+  gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter][1]);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusOn'), focusOn ? 1.0 : 0.0);
   gl.uniform2f(gl.getUniformLocation(p, 'uFocusPoint'), focusX, focusY);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusRadius'), focusRadius);
@@ -449,14 +449,14 @@ function drawGrid(){
   }
 }
 
-// Scatto foto con sincronizzazione atomica e ciclo di campionamento forzato
+// Scatto foto con flash hardware rapido sincronizzato
 async function capturePhoto(){
   const btnShot = document.getElementById('btnShot');
   if (btnShot) btnShot.style.pointerEvents = 'none';
 
   let torchActive = false;
 
-  // 1. Attivazione immediata del flash hardware se selezionato
+  // 1. Accensione immediata della torcia se il flash è attivo
   if (flashOn && videoTrack) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
@@ -466,33 +466,17 @@ async function capturePhoto(){
     }
   }
 
-  // 2. Sospensione temporanea del loop asincrono di sfondo
-  isRendering = false;
+  // 2. Se il flash è attivo, attendiamo ~250ms affinché la torcia sia accesa e faccia luce prima dello scatto
+  if (torchActive) {
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
 
-  // 3. Ciclo di campionamento forzato: ricarica texture WebGL frame per frame
-  // consentendo al sensore della fotocamera di assorbire l'Auto-Esposizione alla luce
-  const exposureTime = torchActive ? 600 : 50;
-  const startTimeExp = performance.now();
-  await new Promise(resolve => {
-    function expStep() {
-      renderFrame();
-      if (performance.now() - startTimeExp < exposureTime) {
-        requestAnimationFrame(expStep);
-      } else {
-        resolve();
-      }
-    }
-    requestAnimationFrame(expStep);
-  });
-
-  // 4. Esecuzione del rendering finale sul frame completamente illuminato
-  renderFrame();
-
-  // 5. Suono di scatto e vibrazione nel picco assoluto di luce
+  // 3. Suono del click, vibrazione e cattura ORA che la torcia è accesa e la luce è presente
   playClick();
   if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
-  // 6. Cattura atomica istantanea del buffer WebGL PRIMA di spegnere il flash
+  renderFrame();
+
   const canvas = document.getElementById('gl');
   let angle = 0;
   try {
@@ -514,19 +498,16 @@ async function capturePhoto(){
     ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
   }
 
-  // 7. Spegnimento della torcia solo DOPO che l'immagine è salvata nello snapshot
+  // 4. Spegnimento rapido e immediato della torcia subito dopo la cattura
   if (torchActive) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
     } catch (err) {}
   }
 
-  // 8. Ripristino del rendering in tempo reale del mirino
-  isRendering = true;
-  requestAnimationFrame(draw);
   if (btnShot) btnShot.style.pointerEvents = 'auto';
 
-  // 9. Esportazione del file PNG dallo snapshot
+  // 5. Download del file immagine generato
   snapCanvas.toBlob((blob) => {
     if (!blob) return;
     const a = document.createElement('a');
@@ -577,8 +558,9 @@ function renderInfoList(){
   list.innerHTML = '';
   EFFECT_INFO.forEach(([name, it, en]) => {
     const item = document.createElement('div'); item.className = 'info-item';
-    const n = document.createElement('div'); n.className = 'n'; n.textContent = name;
-    const d = document.createElement('div'); d.textContent = infoEnglish ? en : it;
+    const n = document.createElement('div'); n.textContent = name;
+    const d = document.createElement('div'); d.className = 'd';
+    d.textContent = infoEnglish ? en : it;
     item.appendChild(n); item.appendChild(d); list.appendChild(item);
   });
   document.getElementById('infoTitle').textContent =

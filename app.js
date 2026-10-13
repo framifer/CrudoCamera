@@ -567,8 +567,7 @@ function renderInfoList(){
   EFFECT_INFO.forEach(([name, it, en]) => {
     const item = document.createElement('div'); item.className = 'info-item';
     const n = document.createElement('div'); n.className = 'n'; n.textContent = name;
-    const d = document.createElement('div'); d.className = 'd';
-    d.textContent = infoEnglish ? en : it;
+    const d = document.createElement('div'); d.textContent = infoEnglish ? en : it;
     item.appendChild(n); item.appendChild(d); list.appendChild(item);
   });
   document.getElementById('infoTitle').textContent =
@@ -594,7 +593,7 @@ async function openCamera(){
     });
     videoTrack = stream.getVideoTracks()[0];
     video.srcObject=stream; 
-    
+
     // Assicura che l'elemento video rimanga attivo senza congelare la decodifica dei fotogrammi su Android
     video.style.display = 'block';
     video.style.position = 'fixed';
@@ -759,10 +758,10 @@ function openEditor(img){
   ]), editorGl.STATIC_DRAW);
   editorTex = editorGl.createTexture();
   editorGl.bindTexture(editorGl.TEXTURE_2D, editorTex);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   editorGl.texImage2D(editorGl.TEXTURE_2D, 0, editorGl.RGB, editorGl.RGB, editorGl.UNSIGNED_BYTE, img);
 
   const er = document.getElementById('editEffects'); er.innerHTML='';

@@ -304,8 +304,6 @@ let texture, video, startTime = performance.now();
 let soundOn = true, gridOn = false, flashOn = false;
 let focusOn = false, focusX = 0.5, focusY = 0.5, focusRadius = 0.25;
 let recorder = null, recChunks = [];
-
-// Variabili per il controllo hardware del flash e del ciclo video
 let videoTrack = null;
 let isRendering = true;
 
@@ -327,9 +325,6 @@ function buildProgram(frag) {
 }
 
 function fragFor(effect) {
-  // Le letture della fotocamera dell'effetto passano per camShutter (motion
-  // blur + luminosita' in base al tempo di posa). RAWTEX protegge le letture
-  // interne di camShutter dalla sostituzione.
   const body = effect.body.replace(/texture2D\(uTex,/g, 'camShutter(');
   return HEAD + `void main(){ ${body}
     vec3 orig = camShutter(vTex).rgb;
@@ -338,11 +333,11 @@ function fragFor(effect) {
 }
 
 function initGL(canvas) {
-  gl = canvas.getContext('webgl');
+  // preserveDrawingBuffer garantisce che toBlob non legga un buffer vuoto
+  gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
   programs = EFFECTS.map(e => buildProgram(fragFor(e)));
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  // pos.xy, tex.uv  (quad a schermo intero; tex.v capovolto per il video)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
     -1,-1, 0,1,   1,-1, 1,1,   -1,1, 0,0,   1,1, 1,0
   ]), gl.STATIC_DRAW);
@@ -354,7 +349,6 @@ function initGL(canvas) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 }
 
-// Disegno del singolo fotogramma sul canvas WebGL
 function renderFrame() {
   if (video && video.readyState >= 2) {
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -372,13 +366,11 @@ function renderFrame() {
   gl.uniform1f(gl.getUniformLocation(p, 'uTime'), (performance.now()-startTime)/1000);
   gl.uniform1f(gl.getUniformLocation(p, 'uIntensity'), intensity);
   gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal][1]);
-  // Ritaglio proporzioni (no squeeze): il video e' landscape, il contenuto e' 2:3
   {
     const vw = (video && video.videoWidth) || 720;
     const vh = (video && video.videoHeight) || 1280;
-    // aspetto verticale effettivo (lato corto / lato lungo)
     const camPortraitA = Math.min(vw, vh) / Math.max(vw, vh);
-    const vpA = 2/3;   // canvas 2:3 verticale
+    const vpA = 2/3;
     let sx = 1, sy = 1;
     if (camPortraitA > vpA) sx = camPortraitA / vpA; else sy = vpA / camPortraitA;
     gl.uniform2f(gl.getUniformLocation(p, 'uQuadScale'), sx, sy);
@@ -391,7 +383,6 @@ function renderFrame() {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-// Loop continuo dell'anteprima mirino
 function draw() {
   if (!isRendering) return;
   renderFrame();
@@ -404,7 +395,7 @@ function playClick() {
   try {
     const el = document.getElementById('shutterAudio');
     if (el) {
-      el.currentTime = 0;      // riparte da capo a ogni scatto
+      el.currentTime = 0;
       el.volume = 1.0;
       el.play();
     }
@@ -448,7 +439,6 @@ function drawGrid(){
   const r=g.getBoundingClientRect(); g.width=r.width; g.height=r.height;
   const c=g.getContext('2d'); c.clearRect(0,0,g.width,g.height);
   c.strokeStyle='rgba(255,255,255,.45)'; c.lineWidth=1;
-  // Rettangolo 3:2 centrato (h = w * 1.5): la griglia sta solo qui
   const w=g.width, h=g.height, targetH=w*1.5;
   let gx,gy,gw,gh;
   if (targetH <= h){ gw=w; gh=targetH; gx=0; gy=(h-targetH)/2; }
@@ -462,39 +452,45 @@ function drawGrid(){
 // Scatto foto con sincronizzazione hardware torcia/flash
 async function capturePhoto(){
   playClick();
-  // Vibrazione tattile breve allo scatto (solo foto, non video)
   if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
-  const supportsFlash = videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities().torch;
-
-  // 1. Ferma temporaneamente l'aggiornamento automatico del mirino
-  isRendering = false;
-
-  // 2. Accendi la torcia se abilitata e supportata dall'hardware
-  if (flashOn && supportsFlash) {
+  let torchActive = false;
+  if (flashOn && videoTrack) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
-      // 3. Attendi che il LED raggiunga la massima intensità luminosa (350ms)
-      await new Promise(resolve => setTimeout(resolve, 350));
-    } catch (err) {
-      console.error("Errore attivazione flash:", err);
-      toast("Errore flash");
+      torchActive = true;
+    } catch(err) {
+      console.warn("Torcia hardware non disponibile:", err);
     }
   }
 
-  // 4. Forza il rendering del singolo fotogramma ora perfettamente illuminato
+  // Se il flash è attivo, manteniamo il rendering vivo per 450ms
+  // per consentire al sensore di calibrare l'esposizione alla luce
+  if (torchActive) {
+    await new Promise(resolve => {
+      const start = performance.now();
+      function syncLoop() {
+        renderFrame();
+        if (performance.now() - start < 450) {
+          requestAnimationFrame(syncLoop);
+        } else {
+          resolve();
+        }
+      }
+      requestAnimationFrame(syncLoop);
+    });
+  }
+
+  isRendering = false;
   renderFrame();
 
   const canvas = document.getElementById('gl');
-  // Rotazione in base a come e' tenuto il telefono (orientamento schermo)
   let angle = 0;
   try {
     const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-    // so: 0 = verticale, 90/270 = orizzontale. Ruotiamo di conseguenza.
     angle = (typeof so === 'number') ? so : 0;
   } catch(e) {}
 
-  // Creazione della Promise di download per garantire lo spegnimento solo a file pronto
   const doDownloadPromise = () => new Promise((resolve) => {
     const doDownload = (blob) => {
       const a = document.createElement('a');
@@ -508,7 +504,6 @@ async function capturePhoto(){
     if (angle === 0) {
       canvas.toBlob(doDownload, 'image/png');
     } else {
-      // Disegna il frame su un canvas ruotato, poi esporta
       const rad = angle * Math.PI / 180;
       const swap = (angle === 90 || angle === 270);
       const oc = document.createElement('canvas');
@@ -522,19 +517,14 @@ async function capturePhoto(){
     }
   });
 
-  // 5. Attendi che il browser completi la conversione in Blob
   await doDownloadPromise();
 
-  // 6. Spegni la torcia
-  if (flashOn && supportsFlash) {
+  if (torchActive) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
-    } catch (err) {
-      console.error("Errore spegnimento flash:", err);
-    }
+    } catch (err) {}
   }
 
-  // 7. Riattiva il loop continuo dell'anteprima
   isRendering = true;
   requestAnimationFrame(draw);
 }
@@ -577,49 +567,35 @@ function renderInfoList(){
   document.getElementById('langEn').classList.toggle('active', infoEnglish);
 }
 
-let facingMode = 'environment';   // 'environment' = posteriore, 'user' = selfie
+let facingMode = 'environment';
 
 async function openCamera(){
   try{
-    // Ferma lo stream precedente prima di aprirne uno nuovo
     if (video && video.srcObject) {
       video.srcObject.getTracks().forEach(t => t.stop());
     }
     const stream=await navigator.mediaDevices.getUserMedia({
       video:{
         facingMode: facingMode,
-        // Richiede la risoluzione piu' alta possibile
         width:  { ideal: 3840 },
         height: { ideal: 2160 }
       },
       audio:false
     });
-    // Salva il track video globale per controllare la torcia/flash
     videoTrack = stream.getVideoTracks()[0];
     video.srcObject=stream; 
     await video.play();
 
-    // Adatta il canvas GL alle proporzioni REALI del video
     fitCanvasToVideo();
 
-    // Gestione visualizzazione icona del flash in base alle capacità hardware
     const flashButton = document.getElementById('dFlash');
-    const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : null;
-    if (capabilities && capabilities.torch) {
-      flashButton.style.display = 'flex';
-    } else {
-      flashButton.style.display = 'none';
-      flashOn = false;
-      flashButton.classList.remove('active');
-    }
+    if (flashButton) flashButton.style.display = 'flex';
   }catch(e){ toast('Fotocamera non disponibile'); }
 }
 
-// Imposta la risoluzione interna del canvas GL con le proporzioni corrette (verticale 2:3)
 function fitCanvasToVideo(){
   const canvas = document.getElementById('gl');
   const vw = video.videoWidth || 720, vh = video.videoHeight || 1280;
-  // lato corto del video come base; output verticale 2:3 (w:h)
   const base = Math.min(vw, vh);
   canvas.width = base;
   canvas.height = Math.round(base * 3 / 2);
@@ -657,8 +633,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     document.getElementById('grid').classList.toggle('on',gridOn);
     if(gridOn) drawGrid();
   };
-  
-  // Gestione pulsante Flash
+
   const flashHandler=e=>{
     flashOn=!flashOn;
     document.getElementById('dFlash').classList.toggle('active',flashOn);
@@ -666,7 +641,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
   };
   document.getElementById('dFlash').onclick=flashHandler;
 
-  // Ghiera SHUTTER SPEED (in basso): a ogni tocco avanza e "gira"
   let shutterRot = 0;
   const shutterEl = document.getElementById('btnShutter');
   shutterEl.onclick=()=>{
@@ -676,14 +650,12 @@ window.addEventListener('DOMContentLoaded', ()=>{
     shutterEl.style.transform = 'rotate(' + shutterRot + 'deg)';
   };
 
-  // Guida effetti "i"
   document.getElementById('dInfo').onclick=()=>{
     renderInfoList();
     document.getElementById('infoOverlay').classList.add('show');
   };
   document.getElementById('dFlip').onclick=()=>{ flipCamera(); };
 
-  // ===== FUOCO simulato =====
   const focusBar = document.getElementById('focusBar');
   const focusMarker = document.getElementById('focusMarker');
   const screenEl = document.querySelector('.screen');
@@ -700,7 +672,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
     if (focusOn) placeMarker();
   };
 
-  // Tocco sulla parte inquadrata = punto di fuoco
   screenEl.addEventListener('pointerdown', (ev)=>{
     if (!focusOn) return;
     const r = screenEl.getBoundingClientRect();
@@ -709,7 +680,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
     placeMarker();
   });
 
-  // Slider raggio fuoco
   document.getElementById('focusRange').oninput=(e)=>{
     focusRadius = e.target.value / 100;
   };
@@ -723,7 +693,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('langIt').onclick=()=>{ infoEnglish=false; renderInfoList(); };
   document.getElementById('langEn').onclick=()=>{ infoEnglish=true; renderInfoList(); };
 
-  // ===== MENU + IMPORT FOTO (post-produzione) =====
   const menuOverlay = document.getElementById('menuOverlay');
   document.getElementById('appTitle').onclick=()=>{ menuOverlay.classList.add('show'); };
   menuOverlay.onclick=(e)=>{ if(e.target.id==='menuOverlay') menuOverlay.classList.remove('show'); };
@@ -755,10 +724,9 @@ function openEditor(img){
   const overlay = document.getElementById('editorOverlay');
   overlay.classList.add('show');
   const canvas = document.getElementById('editGl');
-  // Dimensiona il canvas alla proporzione dell'immagine, entro lo spazio
   const r = document.querySelector('.editor-screen').getBoundingClientRect();
   canvas.width = r.width; canvas.height = r.height;
-  editorGl = canvas.getContext('webgl');
+  editorGl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
   editorPrograms = EFFECTS.map(e => {
     const p = editorGl.createProgram();
     const compile=(src,type)=>{const s=editorGl.createShader(type);editorGl.shaderSource(s,src);editorGl.compileShader(s);return s;};
@@ -779,7 +747,6 @@ function openEditor(img){
   editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MAG_FILTER, editorGl.LINEAR);
   editorGl.texImage2D(editorGl.TEXTURE_2D, 0, editorGl.RGB, editorGl.RGB, editorGl.UNSIGNED_BYTE, img);
 
-  // Rail effetti dell'editor
   const er = document.getElementById('editEffects'); er.innerHTML='';
   EFFECTS.forEach((eff,i)=>{
     const c=document.createElement('div'); c.className='chip'+(i===0?' active':''); c.textContent=eff.name;

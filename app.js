@@ -306,6 +306,7 @@ let focusOn = false, focusX = 0.5, focusY = 0.5, focusRadius = 0.25;
 let recorder = null, recChunks = [];
 let videoTrack = null;
 let isRendering = true;
+let recTorchActive = false;
 
 // ---------- WebGL ----------
 function compile(src, type) {
@@ -449,11 +450,8 @@ function drawGrid(){
   }
 }
 
-// Scatto foto con sincronizzazione hardware torcia/flash (750ms di esposizione continua)
+// Scatto foto con sincronizzazione a rilevamento di fotogrammi fisici
 async function capturePhoto(){
-  playClick();
-  if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
-
   let torchActive = false;
   if (flashOn && videoTrack) {
     try {
@@ -464,22 +462,41 @@ async function capturePhoto(){
     }
   }
 
-  // Se il flash è attivo, manteniamo il rendering vivo per 750ms
-  // per consentire al sensore di ricalibrare l'Auto-Esposizione alla luce intensa
+  // Se la torcia è attiva, attendiamo che il sensore della fotocamera sforni
+  // fisicamente almeno 12 nuovi fotogrammi illuminati prima di scattare
   if (torchActive) {
     await new Promise(resolve => {
-      const start = performance.now();
-      function syncLoop() {
-        renderFrame();
-        if (performance.now() - start < 750) {
-          requestAnimationFrame(syncLoop);
-        } else {
-          resolve();
+      let frameCount = 0;
+      const targetFrames = 12; // ~400ms di fotogrammi reali illuminati
+      if ('requestVideoFrameCallback' in video) {
+        function onFrame() {
+          renderFrame();
+          frameCount++;
+          if (frameCount >= targetFrames) {
+            resolve();
+          } else {
+            video.requestVideoFrameCallback(onFrame);
+          }
         }
+        video.requestVideoFrameCallback(onFrame);
+      } else {
+        const start = performance.now();
+        function loop() {
+          renderFrame();
+          if (performance.now() - start > 800) {
+            resolve();
+          } else {
+            requestAnimationFrame(loop);
+          }
+        }
+        requestAnimationFrame(loop);
       }
-      requestAnimationFrame(syncLoop);
     });
   }
+
+  // Il fotogramma è ora esposto alla piena luce: suono e vibrazione scattano ORA
+  playClick();
+  if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
   isRendering = false;
   renderFrame();
@@ -519,6 +536,7 @@ async function capturePhoto(){
 
   await doDownloadPromise();
 
+  // Spegnimento torcia solo dopo l'estrazione completa dell'immagine
   if (torchActive) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
@@ -529,15 +547,28 @@ async function capturePhoto(){
   requestAnimationFrame(draw);
 }
 
-function toggleRec(){
+// Registrazione video: mantiene la torcia attiva per tutta la durata del video se flashOn è attivo
+async function toggleRec(){
   const canvas=document.getElementById('gl');
   const btn=document.getElementById('btnRec');
   if(!recorder){
+    if (flashOn && videoTrack) {
+      try {
+        await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+        recTorchActive = true;
+      } catch(e){}
+    }
     const stream=canvas.captureStream(30);
     recChunks=[];
     recorder=new MediaRecorder(stream,{mimeType:'video/webm'});
     recorder.ondataavailable=e=>{ if(e.data.size>0) recChunks.push(e.data); };
-    recorder.onstop=()=>{
+    recorder.onstop=async ()=>{
+      if (recTorchActive && videoTrack) {
+        try {
+          await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
+        } catch(e){}
+        recTorchActive = false;
+      }
       const blob=new Blob(recChunks,{type:'video/webm'});
       const a=document.createElement('a');
       a.href=URL.createObjectURL(blob); a.download='CrudoCamera_'+Date.now()+'.webm'; a.click();

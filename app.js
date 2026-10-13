@@ -73,6 +73,7 @@ const HEAD = `
 `;
 
 // Ogni effetto restituisce "col"; alla fine si miscela con l'originale.
+// Ordine: Nativa, effetti pellicola/fotocamera, Point/Shoot, poi i creativi.
 const EFFECTS = [
   { name: 'Nativa', body: `vec3 col = texture2D(uTex, vTex).rgb;` },
   { name: 'Kodachrome', body: `
@@ -81,12 +82,12 @@ const EFFECTS = [
       vec3 tint = mix(vec3(0.90,0.99,1.01), vec3(1.05,1.01,0.93), smoothstep(0.2,0.8,lum));
       col*=tint; col = mix(col, mix(vec3(lum), vec3(0.72,0.70,0.66),0.5), 0.22);
       float rd = clamp((col.r-max(col.g,col.b))*2.0,0.0,1.0);
-      col.r += rd*0.03; col = mix(col, vec3(lum), rd*0.12);
-      col=(col-0.5)*0.92+0.5; col += 0.02*smoothstep(0.15,0.6,lum);
+      col.r += rd*0.03; col = mix(col, vec3(lum), rd*0.12);  // rossi caldi ma desaturati
+      col=(col-0.5)*0.92+0.5; col += 0.02*smoothstep(0.15,0.6,lum);  // luce piatta, velatura solo dove c'e' luce
       float bd = clamp((col.b-max(col.r,col.g))*2.0,0.0,1.0);
-      col = mix(col, vec3(0.66,0.76,0.82), bd*0.30);
-      col += vec3(0.020,0.014,-0.010)*smoothstep(0.12,0.55,lum);
-      col += (rand(vTex*1400.0+uTime)-0.5)*0.03;
+      col = mix(col, vec3(0.66,0.76,0.82), bd*0.30);  // azzurri polverosi
+      col += vec3(0.020,0.014,-0.010)*smoothstep(0.12,0.55,lum);  // dominante calda solo con luce (no patina notturna)
+      col += (rand(vTex*1400.0+uTime)-0.5)*0.03;  // grana finissima
   `},
   { name: 'Portra', body: `
       vec3 col = texture2D(uTex,vTex).rgb; float lum=luma(col);
@@ -130,7 +131,7 @@ const EFFECTS = [
   `},
   { name: 'Lomography', body: `
       vec2 lcen = vTex - 0.5; float lr2 = dot(lcen, lcen);
-      vec2 luv = clamp(0.5 + lcen*(1.0 + 0.12*lr2), 0.0, 1.0);
+      vec2 luv = clamp(0.5 + lcen*(1.0 + 0.12*lr2), 0.0, 1.0);  // barrel distortion lieve
       vec2 lpx = vec2(1.0/720.0, 1.0/1280.0);
       float ledge = smoothstep(0.15, 0.5, lr2);
       vec3 lsharp = texture2D(uTex, luv).rgb;
@@ -160,26 +161,26 @@ const EFFECTS = [
   `},
   { name: 'Fuji', body: `
       vec3 col = texture2D(uTex,vTex).rgb; float lum=luma(col);
-      col=(col-0.5)*0.82+0.5; col+=0.05;
-      float hi=smoothstep(0.55,1.0,lum); col=mix(col, vec3(0.97,0.98,1.0), hi*0.35);
+      col=(col-0.5)*0.82+0.5; col+=0.05;                 // contrasto basso, ombre aperte
+      float hi=smoothstep(0.55,1.0,lum); col=mix(col, vec3(0.97,0.98,1.0), hi*0.35);  // alte luci soffiate
       col.r*=0.97; col.g*=1.01; col.b*=1.06;
-      col += vec3(-0.005,0.01,0.03)*(1.0-lum);
+      col += vec3(-0.005,0.01,0.03)*(1.0-lum);           // ombre fredde/ciano
       float warm = clamp((col.r-max(col.g,col.b))*2.2,0.0,1.0);
       vec3 desat = mix(col, vec3(lum), 0.35);
-      col = mix(desat, col, warm); col.r += warm*0.05;
-      col += (rand(vTex*1500.0+uTime)-0.5)*0.025;
+      col = mix(desat, col, warm); col.r += warm*0.05;   // accenti caldi vivi
+      col += (rand(vTex*1500.0+uTime)-0.5)*0.025;        // grana finissima
   `},
   { name: 'Ricoh', body: `
       vec2 px = vec2(1.0/720.0,1.0/1280.0);
       vec3 col = texture2D(uTex,vTex).rgb;
       vec3 rb = (texture2D(uTex,vTex+vec2(px.x,0.0)*1.5).rgb + texture2D(uTex,vTex-vec2(px.x,0.0)*1.5).rgb
                + texture2D(uTex,vTex+vec2(0.0,px.y)*1.5).rgb + texture2D(uTex,vTex-vec2(0.0,px.y)*1.5).rgb)*0.25;
-      col += (col - rb) * 0.28;
+      col += (col - rb) * 0.28;   // nitidezza incisa "GR"
       float lum=luma(col);
-      col=(col-0.5)*1.18+0.5;
+      col=(col-0.5)*1.18+0.5;     // contrasto deciso, neri presenti
       float gd = clamp((col.g-max(col.r,col.b))*2.0,0.0,1.0);
-      col = mix(col, col*vec3(0.96,1.04,1.0), gd*0.6); col.b += gd*0.01;
-      float w = clamp((col.r-col.b)*1.8,0.0,1.0); col.r += w*0.02;
+      col = mix(col, col*vec3(0.96,1.04,1.0), gd*0.6); col.b += gd*0.01;  // verdi ricchi/freddi
+      float w = clamp((col.r-col.b)*1.8,0.0,1.0); col.r += w*0.02;        // pelle calda sobria
       col = mix(vec3(lum), col, 1.08);
       col += (rand(vTex*1400.0+uTime)-0.5)*0.02;
   `},
@@ -247,6 +248,7 @@ const EFFECTS = [
   `},
 ];
 
+// Guida agli effetti (bilingue) per il pulsante "i".
 const EFFECT_INFO = [
   ['Nativa', "La resa pulita del sensore del telefono, senza filtro. Il punto di partenza neutro.",
              "The phone sensor's clean, unfiltered rendering. The neutral starting point."],
@@ -290,19 +292,19 @@ const FOCALS = [
   ['Nat', 1.0], ['30', 1.12], ['35', 1.35], ['50', 1.9], ['85', 3.2]
 ];
 
+// Tempi di posa simulati: etichetta + valore effetto (-1 veloce .. +1 lento)
 const SHUTTER_SPEEDS = [
   ['1/1000', -1.0], ['1/250', -0.5], ['1/60', 0.0], ['1/15', 0.5], ['1/4', 1.0]
 ];
 
 // ---------- Stato ----------
 let gl, programs = [], curEffect = 0, curFocal = 0, intensity = 1.0;
-let curShutter = 2;
+let curShutter = 2;   // indice tempo di posa (1/60 = normale)
 let texture, video, startTime = performance.now();
 let soundOn = true, gridOn = false, flashOn = false;
 let focusOn = false, focusX = 0.5, focusY = 0.5, focusRadius = 0.25;
 let recorder = null, recChunks = [];
 let videoTrack = null;
-let imageCapturer = null;
 let isRendering = true;
 
 // ---------- WebGL ----------
@@ -331,6 +333,7 @@ function fragFor(effect) {
 }
 
 function initGL(canvas) {
+  // preserveDrawingBuffer garantisce che toBlob non legga un buffer vuoto
   gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
   programs = EFFECTS.map(e => buildProgram(fragFor(e)));
   const buf = gl.createBuffer();
@@ -362,7 +365,7 @@ function renderFrame() {
   gl.vertexAttribPointer(aTex, 2, gl.FLOAT, false, 16, 8);
   gl.uniform1f(gl.getUniformLocation(p, 'uTime'), (performance.now()-startTime)/1000);
   gl.uniform1f(gl.getUniformLocation(p, 'uIntensity'), intensity);
-  gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal]);
+  gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal][1]);
   {
     const vw = (video && video.videoWidth) || 720;
     const vh = (video && video.videoHeight) || 1280;
@@ -372,7 +375,7 @@ function renderFrame() {
     if (camPortraitA > vpA) sx = camPortraitA / vpA; else sy = vpA / camPortraitA;
     gl.uniform2f(gl.getUniformLocation(p, 'uQuadScale'), sx, sy);
   }
-  gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter]);
+  gl.uniform1f(gl.getUniformLocation(p, 'uShutter'), SHUTTER_SPEEDS[curShutter][1]);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusOn'), focusOn ? 1.0 : 0.0);
   gl.uniform2f(gl.getUniformLocation(p, 'uFocusPoint'), focusX, focusY);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusRadius'), focusRadius);
@@ -386,6 +389,7 @@ function draw() {
   requestAnimationFrame(draw);
 }
 
+// ---------- Suono click (file audio reale: shutter.ogg) ----------
 function playClick() {
   if (!soundOn) return;
   try {
@@ -398,6 +402,7 @@ function playClick() {
   } catch (e) {}
 }
 
+// ---------- UI ----------
 function toast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),1500);
@@ -444,58 +449,39 @@ function drawGrid(){
   }
 }
 
-// Crea e attiva il lampo bianco a tutto schermo per l'illuminazione diretta
-function triggerScreenFlash() {
-  let flashEl = document.getElementById('screenFlashOverlay');
-  if (!flashEl) {
-    flashEl = document.createElement('div');
-    flashEl.id = 'screenFlashOverlay';
-    flashEl.style.cssText = 'position:fixed;inset:0;background:#fff;z-index:99999;pointer-events:none;opacity:0;transition:opacity 0.05s ease;';
-    document.body.appendChild(flashEl);
-  }
-  flashEl.style.opacity = '1';
-  return () => {
-    flashEl.style.opacity = '0';
-  };
-}
-
-// Scatto foto con sincronizzazione otturatore e piena cattura del flash
+// Scatto foto con sincronizzazione hardware torcia/flash
 async function capturePhoto(){
   playClick();
   if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
-  let hideScreenFlash = null;
-  let torchOn = false;
-
-  if (flashOn) {
-    // 1. Attiva il flash a schermo pieno per illuminare i soggetti frontali/ambientali
-    hideScreenFlash = triggerScreenFlash();
-
-    // 2. Attiva la torcia hardware posteriore
-    if (videoTrack) {
-      try {
-        await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
-        torchOn = true;
-      } catch(e) {}
+  let torchActive = false;
+  if (flashOn && videoTrack) {
+    try {
+      await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+      torchActive = true;
+    } catch(err) {
+      console.warn("Torcia hardware non disponibile:", err);
     }
+  }
 
-    // 3. Mantieni attiva l'esposizione del sensore per 4 fotogrammi reali consecutivi
+  // Se il flash è attivo, manteniamo il rendering vivo per 450ms
+  // per consentire al sensore di calibrare l'esposizione alla luce
+  if (torchActive) {
     await new Promise(resolve => {
-      let count = 0;
-      function checkFrame() {
+      const start = performance.now();
+      function syncLoop() {
         renderFrame();
-        count++;
-        if (count >= 4) {
-          resolve();
+        if (performance.now() - start < 450) {
+          requestAnimationFrame(syncLoop);
         } else {
-          requestAnimationFrame(checkFrame);
+          resolve();
         }
       }
-      requestAnimationFrame(checkFrame);
+      requestAnimationFrame(syncLoop);
     });
   }
 
-  // 4. Rendering forzato del fotogramma illuminato
+  isRendering = false;
   renderFrame();
 
   const canvas = document.getElementById('gl');
@@ -533,12 +519,10 @@ async function capturePhoto(){
 
   await doDownloadPromise();
 
-  // 5. Spegni torcia e screen flash dopo la cattura
-  if (hideScreenFlash) hideScreenFlash();
-  if (torchOn && videoTrack) {
+  if (torchActive) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
-    } catch(e) {}
+    } catch (err) {}
   }
 
   isRendering = true;
@@ -599,9 +583,6 @@ async function openCamera(){
       audio:false
     });
     videoTrack = stream.getVideoTracks()[0];
-    if (window.ImageCapture && videoTrack) {
-      try { imageCapturer = new ImageCapture(videoTrack); } catch(e) {}
-    }
     video.srcObject=stream; 
     await video.play();
 
@@ -762,8 +743,8 @@ function openEditor(img){
   editorGl.bindTexture(editorGl.TEXTURE_2D, editorTex);
   editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_S, editorGl.CLAMP_TO_EDGE);
   editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_T, editorGl.CLAMP_TO_EDGE);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MIN_FILTER, editorGl.LINEAR);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MAG_FILTER, editorGl.LINEAR);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MAG_FILTER, gl.LINEAR);
   editorGl.texImage2D(editorGl.TEXTURE_2D, 0, editorGl.RGB, editorGl.RGB, editorGl.UNSIGNED_BYTE, img);
 
   const er = document.getElementById('editEffects'); er.innerHTML='';
@@ -779,7 +760,7 @@ function openEditor(img){
     const oc=document.getElementById('editGl');
     oc.toBlob(b=>{
       const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-      a.download='CrudoCamera_edit_' + Date.now() + '.png'; a.click();
+      a.download='CrudoCamera_edit_'+Date.now()+'.png'; a.click();
       toast('Foto scaricata');
     }, 'image/png');
   };
@@ -808,59 +789,3 @@ function drawEditor(){
   editorGl.drawArrays(editorGl.TRIANGLE_STRIP, 0, 4);
   editorRAF = requestAnimationFrame(drawEditor);
 }
-
-
-📄 FILE 2: sw.js
-
-// Service Worker di CrudoCamera: abilita l'uso offline della PWA.
-// Versione aggiornata per forzare il refresh immediato su tutti i dispositivi.
-const CACHE_NAME = 'crudocamera-v28';
-
-const APP_SHELL = [
-  './',
-  './index.html',
-  './app.js',
-  './manifest.webmanifest',
-  './shutter.ogg',
-  './icon-192.png',
-  './icon-512.png'
-];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-      )
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-  event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req)
-        .then((res) => {
-          if (res && res.status === 200 && res.type === 'basic') {
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => {
-          if (req.mode === 'navigate') return caches.match('./index.html');
-        });
-    })
-  );
-});

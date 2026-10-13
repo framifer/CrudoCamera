@@ -1,7 +1,7 @@
 // Service Worker di CrudoCamera: abilita l'uso offline della PWA.
 // Strategia: "cache-first" per gli asset dell'app (guscio applicativo).
-// Aggiornato a v38 per forzare l'invalidazione della cache e il download immediato del codice sincrono.
-const CACHE_NAME = 'crudocamera-v38';
+// Aggiornato a v40 per garantire la definitiva sincronizzazione hardware del flash.
+const CACHE_NAME = 'crudocamera-v40';
 
 // File che compongono il "guscio" dell'app da rendere disponibili offline.
 const APP_SHELL = [

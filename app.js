@@ -449,7 +449,7 @@ function drawGrid(){
   }
 }
 
-// Scatto foto con sincronizzazione hardware torcia/flash
+// Scatto foto con sincronizzazione hardware torcia/flash (750ms di esposizione continua)
 async function capturePhoto(){
   playClick();
   if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
@@ -464,14 +464,14 @@ async function capturePhoto(){
     }
   }
 
-  // Se il flash è attivo, manteniamo il rendering vivo per 450ms
-  // per consentire al sensore di calibrare l'esposizione alla luce
+  // Se il flash è attivo, manteniamo il rendering vivo per 750ms
+  // per consentire al sensore di ricalibrare l'Auto-Esposizione alla luce intensa
   if (torchActive) {
     await new Promise(resolve => {
       const start = performance.now();
       function syncLoop() {
         renderFrame();
-        if (performance.now() - start < 450) {
+        if (performance.now() - start < 750) {
           requestAnimationFrame(syncLoop);
         } else {
           resolve();
@@ -760,7 +760,7 @@ function openEditor(img){
     const oc=document.getElementById('editGl');
     oc.toBlob(b=>{
       const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-      a.download='CrudoCamera_edit_'+Date.now()+'.png'; a.click();
+      a.download='CrudoCamera_edit_' + Date.now() + '.png'; a.click();
       toast('Foto scaricata');
     }, 'image/png');
   };

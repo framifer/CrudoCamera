@@ -72,8 +72,6 @@ const HEAD = `
   }
 `;
 
-// Ogni effetto restituisce "col"; alla fine si miscela con l'originale.
-// Ordine: Nativa, effetti pellicola/fotocamera, Point/Shoot, poi i creativi.
 const EFFECTS = [
   { name: 'Nativa', body: `vec3 col = texture2D(uTex, vTex).rgb;` },
   { name: 'Kodachrome', body: `
@@ -82,12 +80,12 @@ const EFFECTS = [
       vec3 tint = mix(vec3(0.90,0.99,1.01), vec3(1.05,1.01,0.93), smoothstep(0.2,0.8,lum));
       col*=tint; col = mix(col, mix(vec3(lum), vec3(0.72,0.70,0.66),0.5), 0.22);
       float rd = clamp((col.r-max(col.g,col.b))*2.0,0.0,1.0);
-      col.r += rd*0.03; col = mix(col, vec3(lum), rd*0.12);  // rossi caldi ma desaturati
-      col=(col-0.5)*0.92+0.5; col += 0.02*smoothstep(0.15,0.6,lum);  // luce piatta, velatura solo dove c'e' luce
+      col.r += rd*0.03; col = mix(col, vec3(lum), rd*0.12);
+      col=(col-0.5)*0.92+0.5; col += 0.02*smoothstep(0.15,0.6,lum);
       float bd = clamp((col.b-max(col.r,col.g))*2.0,0.0,1.0);
-      col = mix(col, vec3(0.66,0.76,0.82), bd*0.30);  // azzurri polverosi
-      col += vec3(0.020,0.014,-0.010)*smoothstep(0.12,0.55,lum);  // dominante calda solo con luce (no patina notturna)
-      col += (rand(vTex*1400.0+uTime)-0.5)*0.03;  // grana finissima
+      col = mix(col, vec3(0.66,0.76,0.82), bd*0.30);
+      col += vec3(0.020,0.014,-0.010)*smoothstep(0.12,0.55,lum);
+      col += (rand(vTex*1400.0+uTime)-0.5)*0.03;
   `},
   { name: 'Portra', body: `
       vec3 col = texture2D(uTex,vTex).rgb; float lum=luma(col);
@@ -131,7 +129,7 @@ const EFFECTS = [
   `},
   { name: 'Lomography', body: `
       vec2 lcen = vTex - 0.5; float lr2 = dot(lcen, lcen);
-      vec2 luv = clamp(0.5 + lcen*(1.0 + 0.12*lr2), 0.0, 1.0);  // barrel distortion lieve
+      vec2 luv = clamp(0.5 + lcen*(1.0 + 0.12*lr2), 0.0, 1.0);
       vec2 lpx = vec2(1.0/720.0, 1.0/1280.0);
       float ledge = smoothstep(0.15, 0.5, lr2);
       vec3 lsharp = texture2D(uTex, luv).rgb;
@@ -161,26 +159,26 @@ const EFFECTS = [
   `},
   { name: 'Fuji', body: `
       vec3 col = texture2D(uTex,vTex).rgb; float lum=luma(col);
-      col=(col-0.5)*0.82+0.5; col+=0.05;                 // contrasto basso, ombre aperte
-      float hi=smoothstep(0.55,1.0,lum); col=mix(col, vec3(0.97,0.98,1.0), hi*0.35);  // alte luci soffiate
+      col=(col-0.5)*0.82+0.5; col+=0.05;
+      float hi=smoothstep(0.55,1.0,lum); col=mix(col, vec3(0.97,0.98,1.0), hi*0.35);
       col.r*=0.97; col.g*=1.01; col.b*=1.06;
-      col += vec3(-0.005,0.01,0.03)*(1.0-lum);           // ombre fredde/ciano
+      col += vec3(-0.005,0.01,0.03)*(1.0-lum);
       float warm = clamp((col.r-max(col.g,col.b))*2.2,0.0,1.0);
       vec3 desat = mix(col, vec3(lum), 0.35);
-      col = mix(desat, col, warm); col.r += warm*0.05;   // accenti caldi vivi
-      col += (rand(vTex*1500.0+uTime)-0.5)*0.025;        // grana finissima
+      col = mix(desat, col, warm); col.r += warm*0.05;
+      col += (rand(vTex*1500.0+uTime)-0.5)*0.025;
   `},
   { name: 'Ricoh', body: `
       vec2 px = vec2(1.0/720.0,1.0/1280.0);
       vec3 col = texture2D(uTex,vTex).rgb;
       vec3 rb = (texture2D(uTex,vTex+vec2(px.x,0.0)*1.5).rgb + texture2D(uTex,vTex-vec2(px.x,0.0)*1.5).rgb
                + texture2D(uTex,vTex+vec2(0.0,px.y)*1.5).rgb + texture2D(uTex,vTex-vec2(0.0,px.y)*1.5).rgb)*0.25;
-      col += (col - rb) * 0.28;   // nitidezza incisa "GR"
+      col += (col - rb) * 0.28;
       float lum=luma(col);
-      col=(col-0.5)*1.18+0.5;     // contrasto deciso, neri presenti
+      col=(col-0.5)*1.18+0.5;
       float gd = clamp((col.g-max(col.r,col.b))*2.0,0.0,1.0);
-      col = mix(col, col*vec3(0.96,1.04,1.0), gd*0.6); col.b += gd*0.01;  // verdi ricchi/freddi
-      float w = clamp((col.r-col.b)*1.8,0.0,1.0); col.r += w*0.02;        // pelle calda sobria
+      col = mix(col, col*vec3(0.96,1.04,1.0), gd*0.6); col.b += gd*0.01;
+      float w = clamp((col.r-col.b)*1.8,0.0,1.0); col.r += w*0.02;
       col = mix(vec3(lum), col, 1.08);
       col += (rand(vTex*1400.0+uTime)-0.5)*0.02;
   `},
@@ -248,71 +246,52 @@ const EFFECTS = [
   `},
 ];
 
-// Guida agli effetti (bilingue) per il pulsante "i".
 const EFFECT_INFO = [
-  ['Nativa', "La resa pulita del sensore del telefono, senza filtro. Il punto di partenza neutro.",
-             "The phone sensor's clean, unfiltered rendering. The neutral starting point."],
-  ['Kodachrome', "Ispirato a Kodak Kodachrome e allo sguardo di Luigi Ghirri: colori tenui e 'lavati', azzurri pastello, composizione ariosa, grana finissima.",
-             "Inspired by Kodak Kodachrome and Luigi Ghirri's eye: soft 'washed' colours, pastel blues, airy composition, very fine grain."],
-  ['Portra', "Ispirato a Kodak Portra (160/400): toni pelle caldi e cremosi, ombre aperte, colori pastello, grana finissima.",
-             "Inspired by Kodak Portra (160/400): warm creamy skin tones, open shadows, pastel colours, very fine grain."],
-  ['Gold 200', "Ispirato a Kodak Gold 200 / ColorPlus: dominante giallo-dorata nostalgica, contrasto medio, grana visibile.",
-             "Inspired by Kodak Gold 200 / ColorPlus: a nostalgic golden-yellow cast, medium contrast, visible grain."],
-  ['Velvia', "Ispirato a Fujifilm Velvia (50/100): saturazione estrema, contrasti vibranti, verdi/blu intensi, neri profondi.",
-             "Inspired by Fujifilm Velvia (50/100): extreme saturation, vibrant contrast, intense greens/blues, deep blacks."],
-  ['CineStill', "Ispirato a CineStill 800T: tonalità fredde di giorno e 'halation', l'alone rosso attorno alle luci.",
-             "Inspired by CineStill 800T: cool daytime tones and 'halation', the red glow around lights."],
-  ['Superia', "Ispirato a Fujifilm Superia X-TRA 400: tendenza fredda, verdi ricchi, blu profondi, grana finissima. Ideale per la street.",
-             "Inspired by Fujifilm Superia X-TRA 400: a cool bias, rich greens, deep blues, very fine grain. Great for street."],
-  ['Lomography', "Ispirato a Lomography Color Negative 400: colori saturi e caldi, altissimo contrasto, vignettatura e grana rustica.",
-             "Inspired by Lomography Color Negative 400: saturated warm colours, high contrast, vignetting and rustic grain."],
-  ['Ozarks', "Ispirato al color grading delle serie noir/crime: forte dominante teal, desaturato e cupo, ombre profonde, atmosfera tesa.",
-             "Inspired by noir/crime TV grading: a strong teal cast, desaturated and gloomy, deep shadows, a tense mood."],
-  ['Japan', "Ispirato all'estetica giapponese (Yūgen / Mono no aware): palette muted e fredda, azzurri soffici, basso contrasto, delicatezza.",
-             "Inspired by the Japanese aesthetic (Yūgen / Mono no aware): a muted cool palette, soft blues, low contrast, delicacy."],
-  ['Fuji', "Look cinematografico/lifestyle in stile Fuji: alte luci soffiate e ariose, tonalità fredde e delicate, contrasto basso e ombre aperte, ma accenti caldi (rossi/arancioni) vividi. Grana finissima.",
-             "A Fuji-style cinematic/lifestyle look: airy blown-out highlights, cool delicate tones, low contrast and open shadows, but vivid warm accents (reds/oranges). Very fine grain."],
-  ['Ricoh', "Look da compatta 'street' in stile Ricoh GR: immagine incisa e nitida, contrasto deciso con neri presenti, verdi ricchi e leggermente freddi, toni pelle caldi ma sobri. Resa naturale.",
-             "A 'street' compact look in the Ricoh GR style: a crisp, incisive image, decisive contrast with present blacks, rich slightly-cool greens, warm but restrained skin tones. A natural rendering."],
-  ['CanonPS', "Ispirato alla compatta Canon PowerShot SD1000 (metà anni 2000): colori caldi e vividi, contrasto netto, morbidezza JPEG.",
-             "Inspired by the Canon PowerShot SD1000 compact (mid-2000s): warm vivid colours, crisp contrast, JPEG softness."],
-  ['Iphone', "Ispirato alla fotocamera 2MP del primo iPhone (2007): dettagli morbidi, cieli bruciati, toni caldi, al chiuso nebbioso e sgranato.",
-             "Inspired by the 2MP camera of the original iPhone (2007): soft detail, blown-out skies, warm tones, hazy grainy indoors."],
-  ['Point/Shoot', "Ispirato alle usa-e-getta anni '90: dominante calda, grana forte, vignettatura, 'light leak' da un angolo e data impressa. Look imperfetto e nostalgico.",
-             "Inspired by 1990s disposable cameras: a warm cast, strong grain, vignetting, a corner 'light leak' and a date stamp. An imperfect, nostalgic look."],
-  ['Dream', "Sfocatura morbida e toni pastello per un'atmosfera sognante, come un ricordo sfumato.",
-             "Soft blur and pastel tones for a dreamy mood, like a faded memory."],
-  ['Glitch', "Estetica cyberpunk/digitale: aberrazione cromatica, scatti orizzontali e righe da vecchio monitor.",
-             "Cyberpunk/digital aesthetic: chromatic aberration, horizontal jumps and old-monitor scanlines."],
-  ['Liquid Neon', "Effetto creativo originale: i contorni si accendono di neon mentre onde di colore scorrono nel tempo.",
-             "An original creative effect: edges glow with neon while colour waves flow over time."],
+  ['Nativa', "La resa pulita del sensore del telefono, senza filtro. Il punto di partenza neutro.", "The phone sensor's clean, unfiltered rendering. The neutral starting point."],
+  ['Kodachrome', "Ispirato a Kodak Kodachrome e allo sguardo di Luigi Ghirri: colori tenui e 'lavati', azzurri pastello, composizione ariosa, grana finissima.", "Inspired by Kodak Kodachrome and Luigi Ghirri's eye: soft 'washed' colours, pastel blues, airy composition, very fine grain."],
+  ['Portra', "Ispirato a Kodak Portra (160/400): toni pelle caldi e cremosi, ombre aperte, colori pastello, grana finissima.", "Inspired by Kodak Portra (160/400): warm creamy skin tones, open shadows, pastel colours, very fine grain."],
+  ['Gold 200', "Ispirato a Kodak Gold 200 / ColorPlus: dominante giallo-dorata nostalgica, contrasto medio, grana visibile.", "Inspired by Kodak Gold 200 / ColorPlus: a nostalgic golden-yellow cast, medium contrast, visible grain."],
+  ['Velvia', "Ispirato a Fujifilm Velvia (50/100): saturazione estrema, contrasti vibranti, verdi/blu intensi, neri profondi.", "Inspired by Fujifilm Velvia (50/100): extreme saturation, vibrant contrast, intense greens/blues, deep blacks."],
+  ['CineStill', "Ispirato a CineStill 800T: tonalità fredde di giorno e 'halation', l'alone rosso attorno alle luci.", "Inspired by CineStill 800T: cool daytime tones and 'halation', the red glow around lights."],
+  ['Superia', "Ispirato a Fujifilm Superia X-TRA 400: tendenza fredda, verdi ricchi, blu profondi, grana finissima. Ideale per la street.", "Inspired by Fujifilm Superia X-TRA 400: a cool bias, rich greens, deep blues, very fine grain. Great for street."],
+  ['Lomography', "Ispirato a Lomography Color Negative 400: colori saturi e caldi, altissimo contrasto, vignettatura e grana rustica.", "Inspired by Lomography Color Negative 400: saturated warm colours, high contrast, vignetting and rustic grain."],
+  ['Ozarks', "Ispirato al color grading delle serie noir/crime: forte dominante teal, desaturato e cupo, ombre profonde, atmosfera tesa.", "Inspired by noir/crime TV grading: a strong teal cast, desaturated and gloomy, deep shadows, a tense mood."],
+  ['Japan', "Ispirato all'estetica giapponese (Yūgen / Mono no aware): palette muted e fredda, azzurri soffici, basso contrasto, delicatezza.", "Inspired by the Japanese aesthetic (Yūgen / Mono no aware): a muted cool palette, soft blues, low contrast, delicacy."],
+  ['Fuji', "Look cinematografico/lifestyle in stile Fuji: alte luci soffiate e ariose, tonalità fredde e delicate, contrasto basso e ombre aperte, ma accenti caldi (rossi/arancioni) vividi. Grana finissima.", "A Fuji-style cinematic/lifestyle look: airy blown-out highlights, cool delicate tones, low contrast and open shadows, but vivid warm accents (reds/oranges). Very fine grain."],
+  ['Ricoh', "Look da compatta 'street' in stile Ricoh GR: immagine incisa e nitida, contrasto deciso con neri presenti, verdi ricchi e leggermente freddi, toni pelle caldi ma sobri. Resa naturale.", "A 'street' compact look in the Ricoh GR style: a crisp, incisive image, decisive contrast with present blacks, rich slightly-cool greens, warm but restrained skin tones. A natural rendering."],
+  ['CanonPS', "Ispirato alla compatta Canon PowerShot SD1000 (metà anni 2000): colori caldi e vividi, contrasto netto, morbidezza JPEG.", "Inspired by the Canon PowerShot SD1000 compact (mid-2000s): warm vivid colours, crisp contrast, JPEG softness."],
+  ['Iphone', "Ispirato alla fotocamera 2MP del primo iPhone (2007): dettagli morbidi, cieli bruciati, toni caldi, al chiuso nebbioso e sgranato.", "Inspired by the 2MP camera of the original iPhone (2007): soft detail, blown-out skies, warm tones, hazy grainy indoors."],
+  ['Point/Shoot', "Ispirato alle usa-e-getta anni '90: dominante calda, grana forte, vignettatura, 'light leak' da un angolo e data impressa. Look imperfetto e nostalgico.", "Inspired by 1990s disposable cameras: a warm cast, strong grain, vignetting, a corner 'light leak' and a date stamp. An imperfect, nostalgic look."],
+  ['Dream', "Sfocatura morbida e toni pastello per un'atmosfera sognante, come un ricordo sfumato.", "Soft blur and pastel tones for a dreamy mood, like a faded memory."],
+  ['Glitch', "Estetica cyberpunk/digitale: aberrazione cromatica, scatti orizzontali e righe da vecchio monitor.", "Cyberpunk/digital aesthetic: chromatic aberration, horizontal jumps and old-monitor scanlines."],
+  ['Liquid Neon', "Effetto creativo originale: i contorni si accendono di neon mentre onde di colore scorrono nel tempo.", "An original creative effect: edges glow with neon while colour waves flow over time."],
 ];
 
 const FOCALS = [
   ['Nat', 1.0], ['30', 1.12], ['35', 1.35], ['50', 1.9], ['85', 3.2]
 ];
 
-// Tempi di posa simulati: etichetta + valore effetto (-1 veloce .. +1 lento)
 const SHUTTER_SPEEDS = [
   ['1/1000', -1.0], ['1/250', -0.5], ['1/60', 0.0], ['1/15', 0.5], ['1/4', 1.0]
 ];
 
 // ---------- Stato ----------
 let gl, programs = [], curEffect = 0, curFocal = 0, intensity = 1.0;
-let curShutter = 2;   // indice tempo di posa (1/60 = normale)
+let curShutter = 2;
 let texture, video, startTime = performance.now();
 let soundOn = true, gridOn = false, flashOn = false;
 let focusOn = false, focusX = 0.5, focusY = 0.5, focusRadius = 0.25;
 let recorder = null, recChunks = [];
+let videoTrack = null;
 
 // ---------- WebGL ----------
 function compile(src, type) {
   const s = gl.createShader(type);
   gl.shaderSource(s, src); gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
-    console.error(gl.getShaderInfoLog(s));
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
   return s;
 }
+
 function buildProgram(frag) {
   const p = gl.createProgram();
   gl.attachShader(p, compile(VERT, gl.VERTEX_SHADER));
@@ -320,11 +299,9 @@ function buildProgram(frag) {
   gl.linkProgram(p);
   return p;
 }
+
 function fragFor(effect) {
-  // Le letture della fotocamera dell'effetto passano per camShutter (motion
-  // blur + luminosita' in base al tempo di posa). RAWTEX protegge le letture
-  // interne di camShutter dalla sostituzione.
-  const body = effect.body.replace(/texture2D\(uTex,/g, 'camShutter(');
+  const body = effect.body.replace(/texture2D\\(uTex,/g, 'camShutter(');
   return HEAD + `void main(){ ${body}
     vec3 orig = camShutter(vTex).rgb;
     gl_FragColor = vec4(mix(orig, clamp(col,0.0,1.0), uIntensity), 1.0);
@@ -334,14 +311,9 @@ function fragFor(effect) {
 function initGL(canvas) {
   gl = canvas.getContext('webgl');
   programs = EFFECTS.map(e => buildProgram(fragFor(e)));
-
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  // pos.xy, tex.uv  (quad a schermo intero; tex.v capovolto per il video)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -1,-1, 0,1,   1,-1, 1,1,   -1,1, 0,0,   1,1, 1,0
-  ]), gl.STATIC_DRAW);
-
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 0,1, 1,-1, 1,1, -1,1, 0,0, 1,1, 1,0]), gl.STATIC_DRAW);
   texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -357,7 +329,6 @@ function draw() {
   }
   const p = programs[curEffect];
   gl.useProgram(p);
-
   const buf = gl.getParameter(gl.ARRAY_BUFFER_BINDING);
   const aPos = gl.getAttribLocation(p, 'aPos');
   const aTex = gl.getAttribLocation(p, 'aTex');
@@ -365,17 +336,14 @@ function draw() {
   gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
   gl.enableVertexAttribArray(aTex);
   gl.vertexAttribPointer(aTex, 2, gl.FLOAT, false, 16, 8);
-
   gl.uniform1f(gl.getUniformLocation(p, 'uTime'), (performance.now()-startTime)/1000);
   gl.uniform1f(gl.getUniformLocation(p, 'uIntensity'), intensity);
   gl.uniform1f(gl.getUniformLocation(p, 'uZoom'), FOCALS[curFocal][1]);
-  // Ritaglio proporzioni (no squeeze): il video e' landscape, il contenuto e' 2:3
   {
     const vw = (video && video.videoWidth) || 720;
     const vh = (video && video.videoHeight) || 1280;
-    // aspetto verticale effettivo (lato corto / lato lungo)
     const camPortraitA = Math.min(vw, vh) / Math.max(vw, vh);
-    const vpA = 2/3;   // canvas 2:3 verticale
+    const vpA = 2/3;
     let sx = 1, sy = 1;
     if (camPortraitA > vpA) sx = camPortraitA / vpA; else sy = vpA / camPortraitA;
     gl.uniform2f(gl.getUniformLocation(p, 'uQuadScale'), sx, sy);
@@ -385,21 +353,16 @@ function draw() {
   gl.uniform2f(gl.getUniformLocation(p, 'uFocusPoint'), focusX, focusY);
   gl.uniform1f(gl.getUniformLocation(p, 'uFocusRadius'), focusRadius);
   gl.uniform1i(gl.getUniformLocation(p, 'uTex'), 0);
-
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   requestAnimationFrame(draw);
 }
 
-// ---------- Suono click (file audio reale: shutter.ogg) ----------
+// ---------- Suono click ----------
 function playClick() {
   if (!soundOn) return;
   try {
     const el = document.getElementById('shutterAudio');
-    if (el) {
-      el.currentTime = 0;      // riparte da capo a ogni scatto
-      el.volume = 1.0;
-      el.play();
-    }
+    if (el) { el.currentTime = 0; el.volume = 1.0; el.play(); }
   } catch (e) {}
 }
 
@@ -408,14 +371,14 @@ function toast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),1500);
 }
+
 function buildRails(){
   const fr=document.getElementById('focals');
   FOCALS.forEach(([name],i)=>{
-    const c=document.createElement('div'); c.className='chip focals'+(i===0?' active':'');
-    c.textContent=name;
+    const c=document.createElement('div'); c.className='chip focals'+(i===0?' active':''); c.textContent=name;
     c.onclick=()=>{
       curFocal=i;
-      document.querySelectorAll('#focals .chip').forEach(x=>x.classList.remove('active'));
+      fr.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
       c.classList.add('active');
       document.getElementById('lcd').textContent = i===0?'NAT':name+'mm';
     };
@@ -423,22 +386,21 @@ function buildRails(){
   });
   const er=document.getElementById('effects');
   EFFECTS.forEach((e,i)=>{
-    const c=document.createElement('div'); c.className='chip'+(i===0?' active':'');
-    c.textContent=e.name;
+    const c=document.createElement('div'); c.className='chip'+(i===0?' active':''); c.textContent=e.name;
     c.onclick=()=>{
       curEffect=i;
-      document.querySelectorAll('#effects .chip').forEach(x=>x.classList.remove('active'));
+      er.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
       c.classList.add('active');
     };
     er.appendChild(c);
   });
 }
+
 function drawGrid(){
   const g=document.getElementById('grid');
   const r=g.getBoundingClientRect(); g.width=r.width; g.height=r.height;
   const c=g.getContext('2d'); c.clearRect(0,0,g.width,g.height);
   c.strokeStyle='rgba(255,255,255,.45)'; c.lineWidth=1;
-  // Rettangolo 3:2 centrato (h = w * 1.5): la griglia sta solo qui
   const w=g.width, h=g.height, targetH=w*1.5;
   let gx,gy,gw,gh;
   if (targetH <= h){ gw=w; gh=targetH; gx=0; gy=(h-targetH)/2; }
@@ -449,44 +411,71 @@ function drawGrid(){
   }
 }
 
-function capturePhoto(){
-  playClick();
-  // Vibrazione tattile breve allo scatto (solo foto, non video)
-  if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
-  const canvas=document.getElementById('gl');
+// *** NUOVA VERSIONE DI capturePhoto() CON BUG CORRETTO ***
+async function capturePhoto() {
+    playClick();
+    if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
-  // Rotazione in base a come e' tenuto il telefono (orientamento schermo)
-  let angle = 0;
-  try {
-    const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-    // so: 0 = verticale, 90/270 = orizzontale. Ruotiamo di conseguenza.
-    angle = (typeof so === 'number') ? so : 0;
-  } catch(e) {}
+    const supportsFlash = videoTrack && videoTrack.getCapabilities().torch;
 
-  const doDownload = (blob) => {
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='CrudoCamera_'+Date.now()+'.png';
-    a.click();
-    toast('Foto salvata');
-  };
+    // Accendi il flash se attivo e supportato
+    if (flashOn && supportsFlash) {
+        try {
+            await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+            await new Promise(resolve => setTimeout(resolve, 350)); // Attendi che il flash si illumini
+        } catch (err) {
+            console.error("Errore attivazione flash:", err);
+            toast("Errore flash");
+        }
+    }
 
-  if (angle === 0) {
-    canvas.toBlob(doDownload, 'image/png');
-  } else {
-    // Disegna il frame su un canvas ruotato, poi esporta
-    const rad = angle * Math.PI / 180;
-    const swap = (angle === 90 || angle === 270);
-    const oc = document.createElement('canvas');
-    oc.width  = swap ? canvas.height : canvas.width;
-    oc.height = swap ? canvas.width  : canvas.height;
-    const ctx = oc.getContext('2d');
-    ctx.translate(oc.width/2, oc.height/2);
-    ctx.rotate(rad);
-    ctx.drawImage(canvas, -canvas.width/2, -canvas.height/2);
-    oc.toBlob(doDownload, 'image/png');
-  }
+    // Funzione "promisificata" per catturare e salvare l'immagine
+    const processAndDownload = () => new Promise(resolve => {
+        const canvas = document.getElementById('gl');
+        let angle = 0;
+        try {
+            const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+            angle = (typeof so === 'number') ? so : 0;
+        } catch(e) {}
+
+        const doDownload = (blob) => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'CrudoCamera_' + Date.now() + '.png';
+            a.click();
+            toast('Foto salvata');
+            resolve(); // Risolve la promise DOPO che il blob è stato gestito
+        };
+
+        if (angle === 0) {
+            canvas.toBlob(doDownload, 'image/png');
+        } else {
+            const rad = angle * Math.PI / 180;
+            const swap = (angle === 90 || angle === 270);
+            const oc = document.createElement('canvas');
+            oc.width = swap ? canvas.height : canvas.width;
+            oc.height = swap ? canvas.width : canvas.height;
+            const ctx = oc.getContext('2d');
+            ctx.translate(oc.width / 2, oc.height / 2);
+            ctx.rotate(rad);
+            ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+            oc.toBlob(doDownload, 'image/png');
+        }
+    });
+
+    // Attendi che la foto sia stata completamente processata
+    await processAndDownload();
+
+    // Spegni il flash se era stato acceso
+    if (flashOn && supportsFlash) {
+        try {
+            await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
+        } catch (err) {
+            console.error("Errore spegnimento flash:", err);
+        }
+    }
 }
+
 
 function toggleRec(){
   const canvas=document.getElementById('gl');
@@ -508,7 +497,6 @@ function toggleRec(){
   }
 }
 
-// ---------- Guida effetti (finestra "i") ----------
 let infoEnglish = false;
 function renderInfoList(){
   const list = document.getElementById('infoList');
@@ -520,43 +508,43 @@ function renderInfoList(){
     d.textContent = infoEnglish ? en : it;
     item.appendChild(n); item.appendChild(d); list.appendChild(item);
   });
-  document.getElementById('infoTitle').textContent =
-    infoEnglish ? 'Effects guide' : 'Guida agli effetti';
+  document.getElementById('infoTitle').textContent = infoEnglish ? 'Effects guide' : 'Guida agli effetti';
   document.getElementById('langIt').classList.toggle('active', !infoEnglish);
   document.getElementById('langEn').classList.toggle('active', infoEnglish);
 }
 
-let facingMode = 'environment';   // 'environment' = posteriore, 'user' = selfie
-
+let facingMode = 'environment';
 async function openCamera(){
   try{
-    // Ferma lo stream precedente prima di aprirne uno nuovo
     if (video && video.srcObject) {
       video.srcObject.getTracks().forEach(t => t.stop());
     }
     const stream=await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode: facingMode,
-        // Richiede la risoluzione piu' alta possibile (ideale 4K, il browser
-        // sceglie la massima supportata dalla fotocamera).
-        width:  { ideal: 3840 },
-        height: { ideal: 2160 }
-      },
+      video:{ facingMode, width: { ideal: 3840 }, height: { ideal: 2160 } },
       audio:false
     });
+    videoTrack = stream.getVideoTracks()[0];
     video.srcObject=stream; await video.play();
-    // Adatta il canvas GL alle proporzioni REALI del video (niente stiramento).
-    // Il video del telefono e' landscape; in verticale usiamo un ritaglio 3:2.
     fitCanvasToVideo();
-  }catch(e){ toast('Fotocamera non disponibile'); }
+
+    // *** MIGLIORAMENTO: GESTIONE DINAMICA PULSANTE FLASH ***
+    const flashButton = document.getElementById('dFlash');
+    const capabilities = videoTrack.getCapabilities();
+    if (capabilities.torch) {
+        flashButton.style.display = 'flex';
+    } else {
+        flashButton.style.display = 'none';
+        if (flashOn) {
+            flashOn = false;
+            flashButton.classList.remove('active');
+        }
+    }
+  }catch(e){ toast('Fotocamera non disponibile'); console.error(e); }
 }
 
-// Imposta la risoluzione interna del canvas GL con le proporzioni corrette
-// (verticale 2:3) in base al video, per evitare immagini deformate.
 function fitCanvasToVideo(){
   const canvas = document.getElementById('gl');
   const vw = video.videoWidth || 720, vh = video.videoHeight || 1280;
-  // lato corto del video come base; output verticale 2:3 (w:h)
   const base = Math.min(vw, vh);
   canvas.width = base;
   canvas.height = Math.round(base * 3 / 2);
@@ -569,18 +557,13 @@ function flipCamera(){
 
 async function start(){
   const canvas=document.getElementById('gl');
-  // Dimensione iniziale provvisoria; verra' adattata alle proporzioni del
-  // video da fitCanvasToVideo() appena la fotocamera parte (evita deformazione).
   canvas.width = 720; canvas.height = 1080;
   initGL(canvas);
-
   video=document.getElementById('video');
   await openCamera();
-
   requestAnimationFrame(draw);
 }
 
-// ---------- Wiring pulsanti ----------
 window.addEventListener('DOMContentLoaded', ()=>{
   buildRails();
   document.getElementById('intensity').oninput=e=>{
@@ -589,23 +572,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
   };
   document.getElementById('btnShot').onclick=capturePhoto;
   document.getElementById('btnRec').onclick=toggleRec;
-  document.getElementById('dSound').onclick=e=>{
-    soundOn=!soundOn; e.target.classList.toggle('active',soundOn);
-  };
+  document.getElementById('dSound').onclick=e=>{ soundOn=!soundOn; e.target.classList.toggle('active',soundOn); };
   document.getElementById('dGrid').onclick=e=>{
     gridOn=!gridOn; e.target.classList.toggle('active',gridOn);
     document.getElementById('grid').classList.toggle('on',gridOn);
     if(gridOn) drawGrid();
   };
-  const flashHandler=e=>{
-    flashOn=!flashOn;
-    document.getElementById('dFlash').classList.toggle('active',flashOn);
-    // Nota: il flash hardware non e' controllabile in modo affidabile da web.
-    toast(flashOn?'Flash: web non supporta la torcia':'Flash off');
+  document.getElementById('dFlash').onclick = (e) => {
+    flashOn = !flashOn;
+    e.target.classList.toggle('active', flashOn);
+    toast(flashOn ? 'Flash attivo' : 'Flash disattivato');
   };
-  document.getElementById('dFlash').onclick=flashHandler;
-
-  // Ghiera SHUTTER SPEED (in basso): a ogni tocco avanza e "gira"
   let shutterRot = 0;
   const shutterEl = document.getElementById('btnShutter');
   shutterEl.onclick=()=>{
@@ -614,15 +591,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     shutterRot += 72;
     shutterEl.style.transform = 'rotate(' + shutterRot + 'deg)';
   };
-
-  // Guida effetti "i"
-  document.getElementById('dInfo').onclick=()=>{
-    renderInfoList();
-    document.getElementById('infoOverlay').classList.add('show');
-  };
+  document.getElementById('dInfo').onclick=()=>{ renderInfoList(); document.getElementById('infoOverlay').classList.add('show'); };
   document.getElementById('dFlip').onclick=()=>{ flipCamera(); };
-
-  // ===== FUOCO simulato =====
   const focusBar = document.getElementById('focusBar');
   const focusMarker = document.getElementById('focusMarker');
   const screenEl = document.querySelector('.screen');
@@ -636,9 +606,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     e.target.classList.toggle('active', focusOn);
     focusBar.classList.toggle('on', focusOn);
     focusMarker.classList.toggle('on', focusOn);
-    if (focusOn) placeMarker();   // mirino al punto corrente (default centro)
+    if (focusOn) placeMarker();
   };
-  // Tocco sulla parte inquadrata = punto di fuoco
   screenEl.addEventListener('pointerdown', (ev)=>{
     if (!focusOn) return;
     const r = screenEl.getBoundingClientRect();
@@ -646,28 +615,15 @@ window.addEventListener('DOMContentLoaded', ()=>{
     focusY = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
     placeMarker();
   });
-  // Slider raggio fuoco
-  document.getElementById('focusRange').oninput=(e)=>{
-    focusRadius = e.target.value / 100;
-  };
-  document.getElementById('infoClose').onclick=()=>{
-    document.getElementById('infoOverlay').classList.remove('show');
-  };
-  document.getElementById('infoOverlay').onclick=(e)=>{
-    if(e.target.id==='infoOverlay')
-      document.getElementById('infoOverlay').classList.remove('show');
-  };
+  document.getElementById('focusRange').oninput=(e)=>{ focusRadius = e.target.value / 100; };
+  document.getElementById('infoClose').onclick=()=>{ document.getElementById('infoOverlay').classList.remove('show'); };
+  document.getElementById('infoOverlay').onclick=(e)=>{ if(e.target.id==='infoOverlay') document.getElementById('infoOverlay').classList.remove('show'); };
   document.getElementById('langIt').onclick=()=>{ infoEnglish=false; renderInfoList(); };
   document.getElementById('langEn').onclick=()=>{ infoEnglish=true; renderInfoList(); };
-
-  // ===== MENU + IMPORT FOTO (post-produzione) =====
   const menuOverlay = document.getElementById('menuOverlay');
   document.getElementById('appTitle').onclick=()=>{ menuOverlay.classList.add('show'); };
   menuOverlay.onclick=(e)=>{ if(e.target.id==='menuOverlay') menuOverlay.classList.remove('show'); };
-  document.getElementById('menuImport').onclick=()=>{
-    menuOverlay.classList.remove('show');
-    document.getElementById('photoInput').click();
-  };
+  document.getElementById('menuImport').onclick=()=>{ menuOverlay.classList.remove('show'); document.getElementById('photoInput').click(); };
   document.getElementById('photoInput').onchange=(e)=>{
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -675,11 +631,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     img.onload = ()=> openEditor(img);
     img.src = URL.createObjectURL(file);
   };
-  document.getElementById('editorClose').onclick=()=>{
-    document.getElementById('editorOverlay').classList.remove('show');
-    if (editorRAF) cancelAnimationFrame(editorRAF);
-  };
-
+  document.getElementById('editorClose').onclick=()=>{ document.getElementById('editorOverlay').classList.remove('show'); if (editorRAF) cancelAnimationFrame(editorRAF); };
   window.addEventListener('resize', ()=>{ if(gridOn) drawGrid(); });
   start();
 });
@@ -693,10 +645,8 @@ function openEditor(img){
   const overlay = document.getElementById('editorOverlay');
   overlay.classList.add('show');
   const canvas = document.getElementById('editGl');
-  // Dimensiona il canvas alla proporzione dell'immagine, entro lo spazio
   const r = document.querySelector('.editor-screen').getBoundingClientRect();
   canvas.width = r.width; canvas.height = r.height;
-
   editorGl = canvas.getContext('webgl');
   editorPrograms = EFFECTS.map(e => {
     const p = editorGl.createProgram();
@@ -707,9 +657,7 @@ function openEditor(img){
   });
   const buf = editorGl.createBuffer();
   editorGl.bindBuffer(editorGl.ARRAY_BUFFER, buf);
-  editorGl.bufferData(editorGl.ARRAY_BUFFER, new Float32Array([
-    -1,-1, 0,1,  1,-1, 1,1,  -1,1, 0,0,  1,1, 1,0
-  ]), editorGl.STATIC_DRAW);
+  editorGl.bufferData(editorGl.ARRAY_BUFFER, new Float32Array([-1,-1, 0,1,  1,-1, 1,1,  -1,1, 0,0,  1,1, 1,0]), editorGl.STATIC_DRAW);
   editorTex = editorGl.createTexture();
   editorGl.bindTexture(editorGl.TEXTURE_2D, editorTex);
   editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_S, editorGl.CLAMP_TO_EDGE);
@@ -718,7 +666,6 @@ function openEditor(img){
   editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MAG_FILTER, editorGl.LINEAR);
   editorGl.texImage2D(editorGl.TEXTURE_2D, 0, editorGl.RGB, editorGl.RGB, editorGl.UNSIGNED_BYTE, img);
 
-  // Rail effetti dell'editor
   const er = document.getElementById('editEffects'); er.innerHTML='';
   EFFECTS.forEach((eff,i)=>{
     const c=document.createElement('div'); c.className='chip'+(i===0?' active':''); c.textContent=eff.name;

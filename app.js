@@ -450,7 +450,7 @@ function drawGrid(){
   }
 }
 
-// Scatto foto con sincronizzazione a rilevamento di fotogrammi fisici
+// Scatto foto con sincronizzazione hardware completa (Flash sincronizzato)
 async function capturePhoto(){
   let torchActive = false;
   if (flashOn && videoTrack) {
@@ -462,43 +462,28 @@ async function capturePhoto(){
     }
   }
 
-  // Se la torcia è attiva, attendiamo che il sensore della fotocamera sforni
-  // fisicamente almeno 12 nuovi fotogrammi illuminati prima di scattare
+  // Se il flash è attivo, attendiamo 650ms a pieno regime di rendering WebGL
+  // per dare al sensore ottico il tempo di inondare i fotogrammi di luce (Auto-Exposure)
   if (torchActive) {
     await new Promise(resolve => {
-      let frameCount = 0;
-      const targetFrames = 12; // ~400ms di fotogrammi reali illuminati
-      if ('requestVideoFrameCallback' in video) {
-        function onFrame() {
-          renderFrame();
-          frameCount++;
-          if (frameCount >= targetFrames) {
-            resolve();
-          } else {
-            video.requestVideoFrameCallback(onFrame);
-          }
+      const start = performance.now();
+      function exposeLoop() {
+        renderFrame();
+        if (performance.now() - start < 650) {
+          requestAnimationFrame(exposeLoop);
+        } else {
+          resolve();
         }
-        video.requestVideoFrameCallback(onFrame);
-      } else {
-        const start = performance.now();
-        function loop() {
-          renderFrame();
-          if (performance.now() - start > 800) {
-            resolve();
-          } else {
-            requestAnimationFrame(loop);
-          }
-        }
-        requestAnimationFrame(loop);
       }
+      requestAnimationFrame(exposeLoop);
     });
   }
 
-  // Il fotogramma è ora esposto alla piena luce: suono e vibrazione scattano ORA
+  // Suono di scatto e vibrazione nel momento esatto di piena esposizione
   playClick();
   if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
-  isRendering = false;
+  // Rendering del fotogramma esposto alla piena luce
   renderFrame();
 
   const canvas = document.getElementById('gl');
@@ -508,43 +493,37 @@ async function capturePhoto(){
     angle = (typeof so === 'number') ? so : 0;
   } catch(e) {}
 
-  const doDownloadPromise = () => new Promise((resolve) => {
-    const doDownload = (blob) => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'CrudoCamera_' + Date.now() + '.png';
-      a.click();
-      toast('Foto salvata');
-      resolve();
-    };
+  // Creazione immediata di un canvas snapshot prima di disattivare il flash
+  const swap = (angle === 90 || angle === 270);
+  const snapCanvas = document.createElement('canvas');
+  snapCanvas.width  = swap ? canvas.height : canvas.width;
+  snapCanvas.height = swap ? canvas.width  : canvas.height;
+  const ctx = snapCanvas.getContext('2d');
+  if (angle === 0) {
+    ctx.drawImage(canvas, 0, 0);
+  } else {
+    const rad = angle * Math.PI / 180;
+    ctx.translate(snapCanvas.width / 2, snapCanvas.height / 2);
+    ctx.rotate(rad);
+    ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+  }
 
-    if (angle === 0) {
-      canvas.toBlob(doDownload, 'image/png');
-    } else {
-      const rad = angle * Math.PI / 180;
-      const swap = (angle === 90 || angle === 270);
-      const oc = document.createElement('canvas');
-      oc.width  = swap ? canvas.height : canvas.width;
-      oc.height = swap ? canvas.width  : canvas.height;
-      const ctx = oc.getContext('2d');
-      ctx.translate(oc.width/2, oc.height/2);
-      ctx.rotate(rad);
-      ctx.drawImage(canvas, -canvas.width/2, -canvas.height/2);
-      oc.toBlob(doDownload, 'image/png');
-    }
-  });
-
-  await doDownloadPromise();
-
-  // Spegnimento torcia solo dopo l'estrazione completa dell'immagine
+  // Spegnimento del flash: l'immagine ad alta esposizione è già salvata in memoria nello snapCanvas
   if (torchActive) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
     } catch (err) {}
   }
 
-  isRendering = true;
-  requestAnimationFrame(draw);
+  // Generazione del file PNG dallo snapshot
+  snapCanvas.toBlob((blob) => {
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'CrudoCamera_' + Date.now() + '.png';
+    a.click();
+    toast('Foto salvata');
+  }, 'image/png');
 }
 
 // Registrazione video: mantiene la torcia attiva per tutta la durata del video se flashOn è attivo
@@ -615,6 +594,14 @@ async function openCamera(){
     });
     videoTrack = stream.getVideoTracks()[0];
     video.srcObject=stream; 
+    
+    // Assicura che l'elemento video rimanga attivo senza congelare la decodifica dei fotogrammi su Android
+    video.style.display = 'block';
+    video.style.position = 'fixed';
+    video.style.opacity = '0';
+    video.style.pointerEvents = 'none';
+    video.style.zIndex = '-9999';
+
     await video.play();
 
     fitCanvasToVideo();
@@ -772,8 +759,8 @@ function openEditor(img){
   ]), editorGl.STATIC_DRAW);
   editorTex = editorGl.createTexture();
   editorGl.bindTexture(editorGl.TEXTURE_2D, editorTex);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_S, editorGl.CLAMP_TO_EDGE);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_T, editorGl.CLAMP_TO_EDGE);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MIN_FILTER, gl.LINEAR);
   editorGl.texParameteri(editorGl.TEXTURE_2D, editorGl.TEXTURE_MAG_FILTER, gl.LINEAR);
   editorGl.texImage2D(editorGl.TEXTURE_2D, 0, editorGl.RGB, editorGl.RGB, editorGl.UNSIGNED_BYTE, img);

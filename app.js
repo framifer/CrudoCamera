@@ -762,7 +762,7 @@ function openEditor(img){
   editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  editorGl.texImage2D(editorGl.TEXTURE_2D, 0, editorGl.RGB, editorGl.RGB, editorGl.UNSIGNED_BYTE, img);
+  editorGl.texImage2D(editorGl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
 
   const er = document.getElementById('editEffects'); er.innerHTML='';
   EFFECTS.forEach((eff,i)=>{

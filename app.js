@@ -449,14 +449,14 @@ function drawGrid(){
   }
 }
 
-// Scatto foto con flash hardware rapido sincronizzato
+// Scatto foto: SOLO se flashOn è attivo ritarda click, vibrazione e cattura per sincronizzarsi alla luce
 async function capturePhoto(){
   const btnShot = document.getElementById('btnShot');
   if (btnShot) btnShot.style.pointerEvents = 'none';
 
   let torchActive = false;
 
-  // 1. Accensione immediata della torcia se il flash è attivo
+  // 1. Se il toggle del flash è attivo, accendiamo la torcia hardware PRIMA di qualsiasi altra cosa
   if (flashOn && videoTrack) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
@@ -466,12 +466,12 @@ async function capturePhoto(){
     }
   }
 
-  // 2. Se il flash è attivo, attendiamo ~250ms affinché la torcia sia accesa e faccia luce prima dello scatto
+  // 2. Se il flash è attivo, ritardiamo lo scatto di 600ms mentre la torcia illumina la scena
   if (torchActive) {
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(resolve => setTimeout(resolve, 600));
   }
 
-  // 3. Suono del click, vibrazione e cattura ORA che la torcia è accesa e la luce è presente
+  // 3. SOLO ADESSO (a torcia accesa e piena luce) eseguiamo rumore di click, vibrazione e cattura
   playClick();
   if (navigator.vibrate) { try { navigator.vibrate(35); } catch(e){} }
 
@@ -498,7 +498,7 @@ async function capturePhoto(){
     ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
   }
 
-  // 4. Spegnimento rapido e immediato della torcia subito dopo la cattura
+  // 4. Spegnimento rapido e immediato della torcia subito dopo la cattura dell'immagine
   if (torchActive) {
     try {
       await videoTrack.applyConstraints({ advanced: [{ torch: false }] });
@@ -543,259 +543,4 @@ async function toggleRec(){
       const blob=new Blob(recChunks,{type:'video/webm'});
       const a=document.createElement('a');
       a.href=URL.createObjectURL(blob); a.download='CrudoCamera_'+Date.now()+'.webm'; a.click();
-      toast('Video salvato');
-    };
-    recorder.start(); btn.classList.add('active'); btn.textContent='STOP';
-  } else {
-    recorder.stop(); recorder=null; btn.classList.remove('active'); btn.textContent='REC';
-  }
-}
-
-// ---------- Guida effetti (finestra "i") ----------
-let infoEnglish = false;
-function renderInfoList(){
-  const list = document.getElementById('infoList');
-  list.innerHTML = '';
-  EFFECT_INFO.forEach(([name, it, en]) => {
-    const item = document.createElement('div'); item.className = 'info-item';
-    const n = document.createElement('div'); n.textContent = name;
-    const d = document.createElement('div'); d.className = 'd';
-    d.textContent = infoEnglish ? en : it;
-    item.appendChild(n); item.appendChild(d); list.appendChild(item);
-  });
-  document.getElementById('infoTitle').textContent =
-    infoEnglish ? 'Effects guide' : 'Guida agli effetti';
-  document.getElementById('langIt').classList.toggle('active', !infoEnglish);
-  document.getElementById('langEn').classList.toggle('active', infoEnglish);
-}
-
-let facingMode = 'environment';
-
-async function openCamera(){
-  try{
-    if (video && video.srcObject) {
-      video.srcObject.getTracks().forEach(t => t.stop());
-    }
-    const stream=await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode: facingMode,
-        width:  { ideal: 3840 },
-        height: { ideal: 2160 }
-      },
-      audio:false
-    });
-    videoTrack = stream.getVideoTracks()[0];
-    video.srcObject=stream; 
-
-    // Mantiene l'elemento video attivo per evitare throttle di decodifica su Android
-    video.style.display = 'block';
-    video.style.position = 'fixed';
-    video.style.opacity = '0';
-    video.style.pointerEvents = 'none';
-    video.style.zIndex = '-9999';
-
-    await video.play();
-
-    fitCanvasToVideo();
-
-    const flashButton = document.getElementById('dFlash');
-    if (flashButton) flashButton.style.display = 'flex';
-  }catch(e){ toast('Fotocamera non disponibile'); }
-}
-
-function fitCanvasToVideo(){
-  const canvas = document.getElementById('gl');
-  const vw = video.videoWidth || 720, vh = video.videoHeight || 1280;
-  const base = Math.min(vw, vh);
-  canvas.width = base;
-  canvas.height = Math.round(base * 3 / 2);
-}
-
-function flipCamera(){
-  facingMode = (facingMode === 'environment') ? 'user' : 'environment';
-  openCamera();
-}
-
-async function start(){
-  const canvas=document.getElementById('gl');
-  canvas.width = 720; canvas.height = 1080;
-  initGL(canvas);
-  video=document.getElementById('video');
-  await openCamera();
-  isRendering = true;
-  requestAnimationFrame(draw);
-}
-
-// ---------- Wiring pulsanti ----------
-window.addEventListener('DOMContentLoaded', ()=>{
-  buildRails();
-  document.getElementById('intensity').oninput=e=>{
-    intensity=e.target.value/100;
-    document.getElementById('intVal').textContent=e.target.value+'%';
-  };
-  document.getElementById('btnShot').onclick=capturePhoto;
-  document.getElementById('btnRec').onclick=toggleRec;
-  document.getElementById('dSound').onclick=e=>{
-    soundOn=!soundOn; e.target.classList.toggle('active',soundOn);
-  };
-  document.getElementById('dGrid').onclick=e=>{
-    gridOn=!gridOn; e.target.classList.toggle('active',gridOn);
-    document.getElementById('grid').classList.toggle('on',gridOn);
-    if(gridOn) drawGrid();
-  };
-
-  const flashHandler=e=>{
-    flashOn=!flashOn;
-    document.getElementById('dFlash').classList.toggle('active',flashOn);
-    toast(flashOn ? 'Flash attivo' : 'Flash disattivato');
-  };
-  document.getElementById('dFlash').onclick=flashHandler;
-
-  let shutterRot = 0;
-  const shutterEl = document.getElementById('btnShutter');
-  shutterEl.onclick=()=>{
-    curShutter = (curShutter + 1) % SHUTTER_SPEEDS.length;
-    document.getElementById('shutterVal').textContent = SHUTTER_SPEEDS[curShutter][0];
-    shutterRot += 72;
-    shutterEl.style.transform = 'rotate(' + shutterRot + 'deg)';
-  };
-
-  document.getElementById('dInfo').onclick=()=>{
-    renderInfoList();
-    document.getElementById('infoOverlay').classList.add('show');
-  };
-  document.getElementById('dFlip').onclick=()=>{ flipCamera(); };
-
-  const focusBar = document.getElementById('focusBar');
-  const focusMarker = document.getElementById('focusMarker');
-  const screenEl = document.querySelector('.screen');
-  function placeMarker(){
-    const r = screenEl.getBoundingClientRect();
-    focusMarker.style.left = (focusX * r.width) + 'px';
-    focusMarker.style.top  = (focusY * r.height) + 'px';
-  }
-  document.getElementById('dFocus').onclick=(e)=>{
-    focusOn = !focusOn;
-    e.target.classList.toggle('active', focusOn);
-    focusBar.classList.toggle('on', focusOn);
-    focusMarker.classList.toggle('on', focusOn);
-    if (focusOn) placeMarker();
-  };
-
-  screenEl.addEventListener('pointerdown', (ev)=>{
-    if (!focusOn) return;
-    const r = screenEl.getBoundingClientRect();
-    focusX = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
-    focusY = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
-    placeMarker();
-  });
-
-  document.getElementById('focusRange').oninput=(e)=>{
-    focusRadius = e.target.value / 100;
-  };
-  document.getElementById('infoClose').onclick=()=>{
-    document.getElementById('infoOverlay').classList.remove('show');
-  };
-  document.getElementById('infoOverlay').onclick=(e)=>{
-    if(e.target.id==='infoOverlay')
-      document.getElementById('infoOverlay').classList.remove('show');
-  };
-  document.getElementById('langIt').onclick=()=>{ infoEnglish=false; renderInfoList(); };
-  document.getElementById('langEn').onclick=()=>{ infoEnglish=true; renderInfoList(); };
-
-  const menuOverlay = document.getElementById('menuOverlay');
-  document.getElementById('appTitle').onclick=()=>{ menuOverlay.classList.add('show'); };
-  menuOverlay.onclick=(e)=>{ if(e.target.id==='menuOverlay') menuOverlay.classList.remove('show'); };
-  document.getElementById('menuImport').onclick=()=>{
-    menuOverlay.classList.remove('show');
-    document.getElementById('photoInput').click();
-  };
-  document.getElementById('photoInput').onchange=(e)=>{
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const img = new Image();
-    img.onload = ()=> openEditor(img);
-    img.src = URL.createObjectURL(file);
-  };
-  document.getElementById('editorClose').onclick=()=>{
-    document.getElementById('editorOverlay').classList.remove('show');
-    if (editorRAF) cancelAnimationFrame(editorRAF);
-  };
-  window.addEventListener('resize', ()=>{ if(gridOn) drawGrid(); });
-  start();
-});
-
-// ---------- Editor post-produzione (foto importata) ----------
-let editorGl, editorPrograms = [], editorTex, editorEffect = 0, editorIntensity = 1.0, editorRAF = 0;
-let editorImg = null;
-
-function openEditor(img){
-  editorImg = img; editorEffect = 0; editorIntensity = 1.0;
-  const overlay = document.getElementById('editorOverlay');
-  overlay.classList.add('show');
-  const canvas = document.getElementById('editGl');
-  const r = document.querySelector('.editor-screen').getBoundingClientRect();
-  canvas.width = r.width; canvas.height = r.height;
-  editorGl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
-  editorPrograms = EFFECTS.map(e => {
-    const p = editorGl.createProgram();
-    const compile=(src,type)=>{const s=editorGl.createShader(type);editorGl.shaderSource(s,src);editorGl.compileShader(s);return s;};
-    editorGl.attachShader(p, compile(VERT, editorGl.VERTEX_SHADER));
-    editorGl.attachShader(p, compile(fragFor(e), editorGl.FRAGMENT_SHADER));
-    editorGl.linkProgram(p); return p;
-  });
-  const buf = editorGl.createBuffer();
-  editorGl.bindBuffer(editorGl.ARRAY_BUFFER, buf);
-  editorGl.bufferData(editorGl.ARRAY_BUFFER, new Float32Array([
-    -1,-1, 0,1,  1,-1, 1,1,  -1,1, 0,0,  1,1, 1,0
-  ]), editorGl.STATIC_DRAW);
-  editorTex = editorGl.createTexture();
-  editorGl.bindTexture(editorGl.TEXTURE_2D, editorTex);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  editorGl.texParameteri(editorGl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  editorGl.texImage2D(editorGl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
-
-  const er = document.getElementById('editEffects'); er.innerHTML='';
-  EFFECTS.forEach((eff,i)=>{
-    const c=document.createElement('div'); c.className='chip'+(i===0?' active':''); c.textContent=eff.name;
-    c.onclick=()=>{ editorEffect=i; er.querySelectorAll('.chip').forEach(x=>x.classList.remove('active')); c.classList.add('active'); };
-    er.appendChild(c);
-  });
-  document.getElementById('editIntensity').oninput=(e)=>{
-    editorIntensity=e.target.value/100; document.getElementById('editIntVal').textContent=e.target.value+'%';
-  };
-  document.getElementById('editorSave').onclick=()=>{
-    const oc=document.getElementById('editGl');
-    oc.toBlob(b=>{
-      const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-      a.download='CrudoCamera_edit_' + Date.now() + '.png'; a.click();
-      toast('Foto scaricata');
-    }, 'image/png');
-  };
-  drawEditor();
-}
-
-function drawEditor(){
-  if (!editorGl) return;
-  const p = editorPrograms[editorEffect];
-  editorGl.useProgram(p);
-  const buf = editorGl.getParameter(editorGl.ARRAY_BUFFER_BINDING);
-  const aPos=editorGl.getAttribLocation(p,'aPos'), aTex=editorGl.getAttribLocation(p,'aTex');
-  editorGl.enableVertexAttribArray(aPos); editorGl.vertexAttribPointer(aPos,2,editorGl.FLOAT,false,16,0);
-  editorGl.enableVertexAttribArray(aTex); editorGl.vertexAttribPointer(aTex,2,editorGl.FLOAT,false,16,8);
-  editorGl.uniform1f(editorGl.getUniformLocation(p,'uTime'), performance.now()/1000);
-  editorGl.uniform1f(editorGl.getUniformLocation(p,'uIntensity'), editorIntensity);
-  editorGl.uniform1f(editorGl.getUniformLocation(p,'uZoom'), 1.0);
-  editorGl.uniform2f(editorGl.getUniformLocation(p,'uQuadScale'), 1.0, 1.0);
-  editorGl.uniform1f(editorGl.getUniformLocation(p,'uShutter'), 0.0);
-  editorGl.uniform1f(editorGl.getUniformLocation(p,'uFocusOn'), 0.0);
-  editorGl.uniform2f(editorGl.getUniformLocation(p,'uFocusPoint'), 0.5, 0.5);
-  editorGl.uniform1f(editorGl.getUniformLocation(p,'uFocusRadius'), 0.25);
-  editorGl.uniform1i(editorGl.getUniformLocation(p,'uTex'), 0);
-  editorGl.activeTexture(editorGl.TEXTURE0);
-  editorGl.bindTexture(editorGl.TEXTURE_2D, editorTex);
-  editorGl.drawArrays(editorGl.TRIANGLE_STRIP, 0, 4);
-  editorRAF = requestAnimationFrame(drawEditor);
-}
+      toast('Video salvato
